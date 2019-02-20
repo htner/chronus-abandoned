@@ -1,4 +1,4 @@
-module angopher/distributed_influxdb
+module angopher/chronus
 
 require (
 	github.com/gogo/protobuf v1.2.1 // indirect
