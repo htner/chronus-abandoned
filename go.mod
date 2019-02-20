@@ -1,8 +1,10 @@
 module github.com/angopher/chronus
 
 require (
+	collectd.org v0.3.0 // indirect
 	github.com/AndreasBriese/bbloom v0.0.0-20180913140656-343706a395b7 // indirect
 	github.com/BurntSushi/toml v0.3.1
+	github.com/bmizerany/pat v0.0.0-20170815010413-6226ea591a40 // indirect
 	github.com/codahale/hdrhistogram v0.0.0-20161010025455-3a0bb77429bd // indirect
 	github.com/coreos/etcd v3.3.12+incompatible
 	github.com/dgraph-io/badger v1.5.5-0.20181126210712-49a49e321746
@@ -15,6 +17,10 @@ require (
 	github.com/influxdata/influxql v0.0.0-20180925231337-1cbfca8e56b6
 	github.com/influxdata/platform v0.0.0-20190117200541-d500d3cf5589 // indirect
 	github.com/influxdata/roaring v0.4.12 // indirect
+	github.com/influxdata/usage-client v0.0.0-20160829180054-6d3895376368
+	github.com/klauspost/compress v1.4.1 // indirect
+	github.com/klauspost/cpuid v1.2.0 // indirect
+	github.com/klauspost/pgzip v1.2.1
 	github.com/pkg/errors v0.8.0
 	github.com/pkg/profile v1.2.1 // indirect
 	github.com/xlab/treeprint v0.0.0-20181112141820-a009c3971eca // indirect
