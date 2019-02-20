@@ -52,8 +52,8 @@ const (
 	mapTypeRequestMessage
 	mapTypeResponseMessage
 
-    executeTaskManagerRequestMessage
-    executeTaskManagerResponseMessage
+	executeTaskManagerRequestMessage
+	executeTaskManagerResponseMessage
 )
 
 // ShardWriter writes a set of points to a shard.

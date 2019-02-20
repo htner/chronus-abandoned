@@ -1,42 +1,41 @@
 package raftmeta
 
-import(
-    "io/ioutil"
-	"net/http"
-	"fmt"
+import (
 	"context"
-	"time"
-    "encoding/json"
-    "github.com/angopher/chronus/raftmeta/internal"
-    "github.com/angopher/chronus/x"
+	"encoding/json"
+	"fmt"
+	"github.com/angopher/chronus/raftmeta/internal"
 	"github.com/angopher/chronus/services/meta"
+	"github.com/angopher/chronus/x"
 	"github.com/influxdata/influxql"
+	"io/ioutil"
+	"net/http"
+	"time"
 )
 
 type CommonResp struct {
-	RetCode int `json:ret_code`
-	RetMsg string `json:ret_msg`
+	RetCode int    `json:ret_code`
+	RetMsg  string `json:ret_msg`
 }
 
-
 type MetaService struct {
-	node *RaftNode
-	cli *meta.Client
-    Linearizabler interface {
-        ReadNotify(ctx context.Context) error
-    }
+	node          *RaftNode
+	cli           *meta.Client
+	Linearizabler interface {
+		ReadNotify(ctx context.Context) error
+	}
 }
 
 func NewMetaService(cli *meta.Client, node *RaftNode, l *Linearizabler) *MetaService {
-	return &MetaService {
-        cli: cli,
-        node: node,
-        Linearizabler: l,
-    }
+	return &MetaService{
+		cli:           cli,
+		node:          node,
+		Linearizabler: l,
+	}
 }
 
 func (s *MetaService) ProposeAndWait(msgType int, data []byte, retData interface{}) error {
-	timeout := 3*time.Second
+	timeout := 3 * time.Second
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
@@ -49,12 +48,12 @@ func (s *MetaService) ProposeAndWait(msgType int, data []byte, retData interface
 		resCh <- err
 	}()
 
-    var err error
+	var err error
 	select {
 	case err = <-resCh:
 	}
 
-    return err
+	return err
 }
 
 type CreateDatabaseReq struct {
@@ -70,7 +69,7 @@ func (s *MetaService) CreateDatabase(w http.ResponseWriter, r *http.Request) {
 	resp := new(CreateDatabaseResp)
 	resp.RetCode = -1
 	resp.RetMsg = "fail"
-    defer WriteResp(w, &resp)
+	defer WriteResp(w, &resp)
 
 	data, err := ioutil.ReadAll(r.Body)
 	x.Check(err)
@@ -82,7 +81,7 @@ func (s *MetaService) CreateDatabase(w http.ResponseWriter, r *http.Request) {
 	}
 
 	db := &meta.DatabaseInfo{}
-    err = s.ProposeAndWait(internal.CreateDatabase, data, db)
+	err = s.ProposeAndWait(internal.CreateDatabase, data, db)
 	if err == nil {
 		resp.DbInfo = *db
 		resp.RetCode = 0
@@ -105,7 +104,7 @@ func (s *MetaService) DropDatabase(w http.ResponseWriter, r *http.Request) {
 	resp := new(DropDatabaseResp)
 	resp.RetCode = -1
 	resp.RetMsg = "fail"
-    defer WriteResp(w, &resp)
+	defer WriteResp(w, &resp)
 
 	data, err := ioutil.ReadAll(r.Body)
 	x.Check(err)
@@ -116,20 +115,20 @@ func (s *MetaService) DropDatabase(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-    err = s.ProposeAndWait(internal.DropDatabase, data, nil)
+	err = s.ProposeAndWait(internal.DropDatabase, data, nil)
 	if err != nil {
-        resp.RetMsg = err.Error()
-        return
+		resp.RetMsg = err.Error()
+		return
 	}
 
-    resp.RetCode = 0
-    resp.RetMsg = "ok"
+	resp.RetCode = 0
+	resp.RetMsg = "ok"
 	return
 }
 
 type DropRetentionPolicyReq struct {
 	Database string
-	Policy string
+	Policy   string
 }
 
 type DropRetentionPolicyResp struct {
@@ -140,7 +139,7 @@ func (s *MetaService) DropRetentionPolicy(w http.ResponseWriter, r *http.Request
 	resp := new(DropRetentionPolicyResp)
 	resp.RetCode = -1
 	resp.RetMsg = "fail"
-    defer WriteResp(w, &resp)
+	defer WriteResp(w, &resp)
 
 	data, err := ioutil.ReadAll(r.Body)
 	x.Check(err)
@@ -151,7 +150,7 @@ func (s *MetaService) DropRetentionPolicy(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-    err = s.ProposeAndWait(internal.DropRetentionPolicy, data, nil)
+	err = s.ProposeAndWait(internal.DropRetentionPolicy, data, nil)
 	if err != nil {
 		resp.RetMsg = err.Error()
 		fmt.Printf("msg=DropRetetionPolicy failed,database=%s,policy=%s,err_msg=%s\n", req.Database, req.Policy, err.Error())
@@ -164,8 +163,8 @@ func (s *MetaService) DropRetentionPolicy(w http.ResponseWriter, r *http.Request
 }
 
 type CreateShardGroupReq struct {
-	Database string
-	Policy string
+	Database  string
+	Policy    string
 	Timestamp int64
 }
 
@@ -178,7 +177,7 @@ func (s *MetaService) CreateShardGroup(w http.ResponseWriter, r *http.Request) {
 	resp := new(CreateShardGroupResp)
 	resp.RetCode = -1
 	resp.RetMsg = "fail"
-    defer WriteResp(w, &resp)
+	defer WriteResp(w, &resp)
 
 	data, err := ioutil.ReadAll(r.Body)
 	x.Check(err)
@@ -189,8 +188,8 @@ func (s *MetaService) CreateShardGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-    sg := &meta.ShardGroupInfo{}
-    err = s.ProposeAndWait(internal.CreateShardGroup, data, sg)
+	sg := &meta.ShardGroupInfo{}
+	err = s.ProposeAndWait(internal.CreateShardGroup, data, sg)
 	if err != nil {
 		resp.RetMsg = err.Error()
 		fmt.Printf("msg=RetetionPolicy failed,database=%s,policy=%s,err_msg=%s", req.Database, req.Policy, err.Error())
@@ -199,13 +198,13 @@ func (s *MetaService) CreateShardGroup(w http.ResponseWriter, r *http.Request) {
 
 	resp.RetCode = 0
 	resp.RetMsg = "ok"
-	resp.ShardGroupInfo= *sg
+	resp.ShardGroupInfo = *sg
 	return
 }
 
 type CreateDataNodeReq struct {
 	HttpAddr string
-	TcpAddr string
+	TcpAddr  string
 }
 type CreateDataNodeResp struct {
 	CommonResp
@@ -217,7 +216,7 @@ func (s *MetaService) CreateDataNode(w http.ResponseWriter, r *http.Request) {
 	resp := new(CreateDataNodeResp)
 	resp.RetCode = -1
 	resp.RetMsg = "fail"
-    defer WriteResp(w, &resp)
+	defer WriteResp(w, &resp)
 
 	data, err := ioutil.ReadAll(r.Body)
 	x.Check(err)
@@ -228,8 +227,8 @@ func (s *MetaService) CreateDataNode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-    ni := &meta.NodeInfo{}
-    err = s.ProposeAndWait(internal.CreateDataNode, data, ni)
+	ni := &meta.NodeInfo{}
+	err = s.ProposeAndWait(internal.CreateDataNode, data, ni)
 	if err != nil {
 		resp.RetMsg = err.Error()
 		return
@@ -242,7 +241,7 @@ func (s *MetaService) CreateDataNode(w http.ResponseWriter, r *http.Request) {
 }
 
 type DeleteDataNodeReq struct {
-    Id uint64
+	Id uint64
 }
 type DeleteDataNodeResp struct {
 	CommonResp
@@ -253,7 +252,7 @@ func (s *MetaService) DeleteDataNode(w http.ResponseWriter, r *http.Request) {
 	resp := new(DeleteDataNodeResp)
 	resp.RetCode = -1
 	resp.RetMsg = "fail"
-    defer WriteResp(w, &resp)
+	defer WriteResp(w, &resp)
 
 	data, err := ioutil.ReadAll(r.Body)
 	x.Check(err)
@@ -264,7 +263,7 @@ func (s *MetaService) DeleteDataNode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-    err = s.ProposeAndWait(internal.DeleteDataNode, data, nil)
+	err = s.ProposeAndWait(internal.DeleteDataNode, data, nil)
 	if err != nil {
 		resp.RetMsg = err.Error()
 		return
@@ -275,20 +274,20 @@ func (s *MetaService) DeleteDataNode(w http.ResponseWriter, r *http.Request) {
 }
 
 type RetentionPolicySpec struct {
-    Name               string
-    ReplicaN           int
-    Duration           time.Duration
-    ShardGroupDuration time.Duration
+	Name               string
+	ReplicaN           int
+	Duration           time.Duration
+	ShardGroupDuration time.Duration
 }
 
 type CreateRetentionPolicyReq struct {
-    Database string
-    Rps RetentionPolicySpec
-    MakeDefault bool
+	Database    string
+	Rps         RetentionPolicySpec
+	MakeDefault bool
 }
 type CreateRetentionPolicyResp struct {
 	CommonResp
-    RetentionPolicyInfo meta.RetentionPolicyInfo
+	RetentionPolicyInfo meta.RetentionPolicyInfo
 }
 
 func (s *MetaService) CreateRetentionPolicy(w http.ResponseWriter, r *http.Request) {
@@ -296,7 +295,7 @@ func (s *MetaService) CreateRetentionPolicy(w http.ResponseWriter, r *http.Reque
 	resp := new(CreateRetentionPolicyResp)
 	resp.RetCode = -1
 	resp.RetMsg = "fail"
-    defer WriteResp(w, &resp)
+	defer WriteResp(w, &resp)
 
 	data, err := ioutil.ReadAll(r.Body)
 	x.Check(err)
@@ -307,8 +306,8 @@ func (s *MetaService) CreateRetentionPolicy(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-    rpi := &meta.RetentionPolicyInfo{}
-    err = s.ProposeAndWait(internal.CreateRetentionPolicy, data, rpi)
+	rpi := &meta.RetentionPolicyInfo{}
+	err = s.ProposeAndWait(internal.CreateRetentionPolicy, data, rpi)
 	if err != nil {
 		resp.RetMsg = err.Error()
 		return
@@ -320,10 +319,10 @@ func (s *MetaService) CreateRetentionPolicy(w http.ResponseWriter, r *http.Reque
 }
 
 type UpdateRetentionPolicyReq struct {
-    Database string
-    Name string
-    Rps RetentionPolicySpec
-    MakeDefault bool
+	Database    string
+	Name        string
+	Rps         RetentionPolicySpec
+	MakeDefault bool
 }
 type UpdateRetentionPolicyResp struct {
 	CommonResp
@@ -333,7 +332,7 @@ func (s *MetaService) UpdateRetentionPolicy(w http.ResponseWriter, r *http.Reque
 	resp := new(UpdateRetentionPolicyResp)
 	resp.RetCode = -1
 	resp.RetMsg = "fail"
-    defer WriteResp(w, &resp)
+	defer WriteResp(w, &resp)
 
 	data, err := ioutil.ReadAll(r.Body)
 	x.Check(err)
@@ -344,7 +343,7 @@ func (s *MetaService) UpdateRetentionPolicy(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-    err = s.ProposeAndWait(internal.UpdateRetentionPolicy, data, nil)
+	err = s.ProposeAndWait(internal.UpdateRetentionPolicy, data, nil)
 	if err != nil {
 		resp.RetMsg = err.Error()
 		return
@@ -355,8 +354,8 @@ func (s *MetaService) UpdateRetentionPolicy(w http.ResponseWriter, r *http.Reque
 }
 
 type CreateDatabaseWithRetentionPolicyReq struct {
-    Name string
-    Rps RetentionPolicySpec
+	Name string
+	Rps  RetentionPolicySpec
 }
 type CreateDatabaseWithRetentionPolicyResp struct {
 	CommonResp
@@ -367,7 +366,7 @@ func (s *MetaService) CreateDatabaseWithRetentionPolicy(w http.ResponseWriter, r
 	resp := new(CreateDatabaseWithRetentionPolicyResp)
 	resp.RetCode = -1
 	resp.RetMsg = "fail"
-    defer WriteResp(w, &resp)
+	defer WriteResp(w, &resp)
 
 	data, err := ioutil.ReadAll(r.Body)
 	x.Check(err)
@@ -379,7 +378,7 @@ func (s *MetaService) CreateDatabaseWithRetentionPolicy(w http.ResponseWriter, r
 	}
 
 	db := &meta.DatabaseInfo{}
-    err = s.ProposeAndWait(internal.CreateDatabaseWithRetentionPolicy, data, db)
+	err = s.ProposeAndWait(internal.CreateDatabaseWithRetentionPolicy, data, db)
 	if err != nil {
 		resp.RetMsg = err.Error()
 		return
@@ -391,20 +390,20 @@ func (s *MetaService) CreateDatabaseWithRetentionPolicy(w http.ResponseWriter, r
 }
 
 type CreateUserReq struct {
-    Name string
-    Password string
-    Admin bool
+	Name     string
+	Password string
+	Admin    bool
 }
 type CreateUserResp struct {
 	CommonResp
-    UserInfo meta.UserInfo
+	UserInfo meta.UserInfo
 }
 
 func (s *MetaService) CreateUser(w http.ResponseWriter, r *http.Request) {
 	resp := new(CreateUserResp)
 	resp.RetCode = -1
 	resp.RetMsg = "fail"
-    defer WriteResp(w, &resp)
+	defer WriteResp(w, &resp)
 
 	data, err := ioutil.ReadAll(r.Body)
 	x.Check(err)
@@ -415,20 +414,20 @@ func (s *MetaService) CreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-    user := &meta.UserInfo{}
-    err = s.ProposeAndWait(internal.CreateUser, data, user)
+	user := &meta.UserInfo{}
+	err = s.ProposeAndWait(internal.CreateUser, data, user)
 	if err != nil {
 		resp.RetMsg = err.Error()
 		return
 	}
 
-    resp.UserInfo = *user
+	resp.UserInfo = *user
 	resp.RetCode = 0
 	resp.RetMsg = "ok"
 }
 
 type DropUserReq struct {
-    Name string
+	Name string
 }
 type DropUserResp struct {
 	CommonResp
@@ -438,7 +437,7 @@ func (s *MetaService) DropUser(w http.ResponseWriter, r *http.Request) {
 	resp := new(DropUserResp)
 	resp.RetCode = -1
 	resp.RetMsg = "fail"
-    defer WriteResp(w, &resp)
+	defer WriteResp(w, &resp)
 
 	data, err := ioutil.ReadAll(r.Body)
 	x.Check(err)
@@ -449,7 +448,7 @@ func (s *MetaService) DropUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-    err = s.ProposeAndWait(internal.DropUser, data, nil)
+	err = s.ProposeAndWait(internal.DropUser, data, nil)
 	if err != nil {
 		resp.RetMsg = err.Error()
 		return
@@ -460,8 +459,8 @@ func (s *MetaService) DropUser(w http.ResponseWriter, r *http.Request) {
 }
 
 type UpdateUserReq struct {
-    Name string
-    Password string
+	Name     string
+	Password string
 }
 type UpdateUserResp struct {
 	CommonResp
@@ -471,7 +470,7 @@ func (s *MetaService) UpdateUser(w http.ResponseWriter, r *http.Request) {
 	resp := new(UpdateUserResp)
 	resp.RetCode = -1
 	resp.RetMsg = "fail"
-    defer WriteResp(w, &resp)
+	defer WriteResp(w, &resp)
 
 	data, err := ioutil.ReadAll(r.Body)
 	x.Check(err)
@@ -482,7 +481,7 @@ func (s *MetaService) UpdateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-    err = s.ProposeAndWait(internal.UpdateUser, data, nil)
+	err = s.ProposeAndWait(internal.UpdateUser, data, nil)
 	if err != nil {
 		resp.RetMsg = err.Error()
 		return
@@ -493,9 +492,9 @@ func (s *MetaService) UpdateUser(w http.ResponseWriter, r *http.Request) {
 }
 
 type SetPrivilegeReq struct {
-    UserName string
-    Database string
-    Privilege influxql.Privilege
+	UserName  string
+	Database  string
+	Privilege influxql.Privilege
 }
 type SetPrivilegeResp struct {
 	CommonResp
@@ -505,7 +504,7 @@ func (s *MetaService) SetPrivilege(w http.ResponseWriter, r *http.Request) {
 	resp := new(SetPrivilegeResp)
 	resp.RetCode = -1
 	resp.RetMsg = "fail"
-    defer WriteResp(w, &resp)
+	defer WriteResp(w, &resp)
 
 	data, err := ioutil.ReadAll(r.Body)
 	x.Check(err)
@@ -516,7 +515,7 @@ func (s *MetaService) SetPrivilege(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-    err = s.ProposeAndWait(internal.SetPrivilege, data, nil)
+	err = s.ProposeAndWait(internal.SetPrivilege, data, nil)
 	if err != nil {
 		resp.RetMsg = err.Error()
 		return
@@ -527,8 +526,8 @@ func (s *MetaService) SetPrivilege(w http.ResponseWriter, r *http.Request) {
 }
 
 type SetAdminPrivilegeReq struct {
-    UserName string
-    Admin bool
+	UserName string
+	Admin    bool
 }
 type SetAdminPrivilegeResp struct {
 	CommonResp
@@ -538,7 +537,7 @@ func (s *MetaService) SetAdminPrivilege(w http.ResponseWriter, r *http.Request) 
 	resp := new(SetAdminPrivilegeResp)
 	resp.RetCode = -1
 	resp.RetMsg = "fail"
-    defer WriteResp(w, &resp)
+	defer WriteResp(w, &resp)
 
 	data, err := ioutil.ReadAll(r.Body)
 	x.Check(err)
@@ -549,7 +548,7 @@ func (s *MetaService) SetAdminPrivilege(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-    err = s.ProposeAndWait(internal.SetAdminPrivilege, data, nil)
+	err = s.ProposeAndWait(internal.SetAdminPrivilege, data, nil)
 	if err != nil {
 		resp.RetMsg = err.Error()
 		return
@@ -560,19 +559,19 @@ func (s *MetaService) SetAdminPrivilege(w http.ResponseWriter, r *http.Request) 
 }
 
 type AuthenticateReq struct {
-    UserName string
-    Password string
+	UserName string
+	Password string
 }
 type AuthenticateResp struct {
 	CommonResp
-    UserInfo meta.UserInfo
+	UserInfo meta.UserInfo
 }
 
 func (s *MetaService) Authenticate(w http.ResponseWriter, r *http.Request) {
 	resp := new(AuthenticateResp)
 	resp.RetCode = -1
 	resp.RetMsg = "fail"
-    defer WriteResp(w, &resp)
+	defer WriteResp(w, &resp)
 
 	data, err := ioutil.ReadAll(r.Body)
 	x.Check(err)
@@ -583,20 +582,20 @@ func (s *MetaService) Authenticate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-    user := &meta.UserInfo{}
-    err = s.ProposeAndWait(internal.Authenticate, data, user)
+	user := &meta.UserInfo{}
+	err = s.ProposeAndWait(internal.Authenticate, data, user)
 	if err != nil {
 		resp.RetMsg = err.Error()
 		return
 	}
 
-    resp.UserInfo = *(user)
+	resp.UserInfo = *(user)
 	resp.RetCode = 0
 	resp.RetMsg = "ok"
 }
 
 type DropShardReq struct {
-    Id uint64
+	Id uint64
 }
 type DropShardResp struct {
 	CommonResp
@@ -606,7 +605,7 @@ func (s *MetaService) DropShard(w http.ResponseWriter, r *http.Request) {
 	resp := new(DropShardResp)
 	resp.RetCode = -1
 	resp.RetMsg = "fail"
-    defer WriteResp(w, &resp)
+	defer WriteResp(w, &resp)
 
 	data, err := ioutil.ReadAll(r.Body)
 	x.Check(err)
@@ -617,7 +616,7 @@ func (s *MetaService) DropShard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-    err = s.ProposeAndWait(internal.DropShard, data, nil)
+	err = s.ProposeAndWait(internal.DropShard, data, nil)
 	if err != nil {
 		resp.RetMsg = err.Error()
 		return
@@ -638,7 +637,7 @@ func (s *MetaService) TruncateShardGroups(w http.ResponseWriter, r *http.Request
 	resp := new(TruncateShardGroupsResp)
 	resp.RetCode = -1
 	resp.RetMsg = "fail"
-    defer WriteResp(w, &resp)
+	defer WriteResp(w, &resp)
 
 	data, err := ioutil.ReadAll(r.Body)
 	x.Check(err)
@@ -649,7 +648,7 @@ func (s *MetaService) TruncateShardGroups(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-    err = s.ProposeAndWait(internal.TruncateShardGroups, data, nil)
+	err = s.ProposeAndWait(internal.TruncateShardGroups, data, nil)
 	if err != nil {
 		resp.RetMsg = err.Error()
 		return
@@ -667,9 +666,9 @@ func (s *MetaService) PruneShardGroups(w http.ResponseWriter, r *http.Request) {
 	resp := new(PruneShardGroupsResp)
 	resp.RetCode = -1
 	resp.RetMsg = "fail"
-    defer WriteResp(w, &resp)
+	defer WriteResp(w, &resp)
 
-    err := s.ProposeAndWait(internal.PruneShardGroups, []byte{}, nil)
+	err := s.ProposeAndWait(internal.PruneShardGroups, []byte{}, nil)
 	if err != nil {
 		resp.RetMsg = err.Error()
 		return
@@ -681,9 +680,9 @@ func (s *MetaService) PruneShardGroups(w http.ResponseWriter, r *http.Request) {
 
 //DeleteShardGroup
 type DeleteShardGroupReq struct {
-    Database string
-    Policy string
-	Id uint64
+	Database string
+	Policy   string
+	Id       uint64
 }
 type DeleteShardGroupResp struct {
 	CommonResp
@@ -693,7 +692,7 @@ func (s *MetaService) DeleteShardGroup(w http.ResponseWriter, r *http.Request) {
 	resp := new(DeleteShardGroupResp)
 	resp.RetCode = -1
 	resp.RetMsg = "fail"
-    defer WriteResp(w, &resp)
+	defer WriteResp(w, &resp)
 
 	data, err := ioutil.ReadAll(r.Body)
 	x.Check(err)
@@ -704,7 +703,7 @@ func (s *MetaService) DeleteShardGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-    err = s.ProposeAndWait(internal.DeleteShardGroup, data, nil)
+	err = s.ProposeAndWait(internal.DeleteShardGroup, data, nil)
 	if err != nil {
 		resp.RetMsg = err.Error()
 		return
@@ -717,7 +716,7 @@ func (s *MetaService) DeleteShardGroup(w http.ResponseWriter, r *http.Request) {
 //PrecreateShardGroups
 type PrecreateShardGroupsReq struct {
 	From time.Time
-	To time.Time
+	To   time.Time
 }
 type PrecreateShardGroupsResp struct {
 	CommonResp
@@ -727,7 +726,7 @@ func (s *MetaService) PrecreateShardGroups(w http.ResponseWriter, r *http.Reques
 	resp := new(PrecreateShardGroupsResp)
 	resp.RetCode = -1
 	resp.RetMsg = "fail"
-    defer WriteResp(w, &resp)
+	defer WriteResp(w, &resp)
 
 	data, err := ioutil.ReadAll(r.Body)
 	x.Check(err)
@@ -738,7 +737,7 @@ func (s *MetaService) PrecreateShardGroups(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-    err = s.ProposeAndWait(internal.PrecreateShardGroups, data, nil)
+	err = s.ProposeAndWait(internal.PrecreateShardGroups, data, nil)
 	if err != nil {
 		resp.RetMsg = err.Error()
 		return
@@ -751,8 +750,8 @@ func (s *MetaService) PrecreateShardGroups(w http.ResponseWriter, r *http.Reques
 //CreateContinuousQuery
 type CreateContinuousQueryReq struct {
 	Database string
-	Name string
-	Query string
+	Name     string
+	Query    string
 }
 type CreateContinuousQueryResp struct {
 	CommonResp
@@ -762,7 +761,7 @@ func (s *MetaService) CreateContinuousQuery(w http.ResponseWriter, r *http.Reque
 	resp := new(CreateContinuousQueryResp)
 	resp.RetCode = -1
 	resp.RetMsg = "fail"
-    defer WriteResp(w, &resp)
+	defer WriteResp(w, &resp)
 
 	data, err := ioutil.ReadAll(r.Body)
 	x.Check(err)
@@ -773,7 +772,7 @@ func (s *MetaService) CreateContinuousQuery(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-    err = s.ProposeAndWait(internal.CreateContinuousQuery, data, nil)
+	err = s.ProposeAndWait(internal.CreateContinuousQuery, data, nil)
 	if err != nil {
 		resp.RetMsg = err.Error()
 		return
@@ -786,7 +785,7 @@ func (s *MetaService) CreateContinuousQuery(w http.ResponseWriter, r *http.Reque
 //DropContinuousQuery
 type DropContinuousQueryReq struct {
 	Database string
-	Name string
+	Name     string
 }
 type DropContinuousQueryResp struct {
 	CommonResp
@@ -796,7 +795,7 @@ func (s *MetaService) DropContinuousQuery(w http.ResponseWriter, r *http.Request
 	resp := new(DropContinuousQueryResp)
 	resp.RetCode = -1
 	resp.RetMsg = "fail"
-    defer WriteResp(w, &resp)
+	defer WriteResp(w, &resp)
 
 	data, err := ioutil.ReadAll(r.Body)
 	x.Check(err)
@@ -807,7 +806,7 @@ func (s *MetaService) DropContinuousQuery(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-    err = s.ProposeAndWait(internal.DropContinuousQuery, data, nil)
+	err = s.ProposeAndWait(internal.DropContinuousQuery, data, nil)
 	if err != nil {
 		resp.RetMsg = err.Error()
 		return
@@ -819,10 +818,10 @@ func (s *MetaService) DropContinuousQuery(w http.ResponseWriter, r *http.Request
 
 //CreateSubscription
 type CreateSubscriptionReq struct {
-	Database string
-	Rp string
-	Name string
-	Mode string
+	Database     string
+	Rp           string
+	Name         string
+	Mode         string
 	Destinations []string
 }
 type CreateSubscriptionResp struct {
@@ -833,7 +832,7 @@ func (s *MetaService) CreateSubscription(w http.ResponseWriter, r *http.Request)
 	resp := new(CreateSubscriptionResp)
 	resp.RetCode = -1
 	resp.RetMsg = "fail"
-    defer WriteResp(w, &resp)
+	defer WriteResp(w, &resp)
 
 	data, err := ioutil.ReadAll(r.Body)
 	x.Check(err)
@@ -844,7 +843,7 @@ func (s *MetaService) CreateSubscription(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-    err = s.ProposeAndWait(internal.CreateSubscription, data, nil)
+	err = s.ProposeAndWait(internal.CreateSubscription, data, nil)
 	if err != nil {
 		resp.RetMsg = err.Error()
 		return
@@ -857,8 +856,8 @@ func (s *MetaService) CreateSubscription(w http.ResponseWriter, r *http.Request)
 //DropSubscription
 type DropSubscriptionReq struct {
 	Database string
-	Rp string
-	Name string
+	Rp       string
+	Name     string
 }
 type DropSubscriptionResp struct {
 	CommonResp
@@ -868,7 +867,7 @@ func (s *MetaService) DropSubscription(w http.ResponseWriter, r *http.Request) {
 	resp := new(DropSubscriptionResp)
 	resp.RetCode = -1
 	resp.RetMsg = "fail"
-    defer WriteResp(w, &resp)
+	defer WriteResp(w, &resp)
 
 	data, err := ioutil.ReadAll(r.Body)
 	x.Check(err)
@@ -879,7 +878,7 @@ func (s *MetaService) DropSubscription(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-    err = s.ProposeAndWait(internal.DropSubscription, data, nil)
+	err = s.ProposeAndWait(internal.DropSubscription, data, nil)
 	if err != nil {
 		resp.RetMsg = err.Error()
 		return
@@ -890,7 +889,7 @@ func (s *MetaService) DropSubscription(w http.ResponseWriter, r *http.Request) {
 }
 
 type AcquireLeaseReq struct {
-	Name string
+	Name   string
 	NodeId uint64
 }
 
@@ -914,8 +913,8 @@ func (s *MetaService) AcquireLease(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-    lease := &meta.Lease{}
-    err = s.ProposeAndWait(internal.AcquireLease, data, lease)
+	lease := &meta.Lease{}
+	err = s.ProposeAndWait(internal.AcquireLease, data, lease)
 	if err != nil {
 		resp.RetMsg = err.Error()
 		return
@@ -935,15 +934,15 @@ func (s *MetaService) Data(w http.ResponseWriter, r *http.Request) {
 	resp := new(DataResp)
 	resp.RetCode = -1
 	resp.RetMsg = "fail"
-    defer WriteResp(w, &resp)
+	defer WriteResp(w, &resp)
 
-    ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-    defer cancel()
-    err := s.Linearizabler.ReadNotify(ctx)
-    if err != nil {
-        resp.RetMsg = err.Error()
-        return
-    }
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	err := s.Linearizabler.ReadNotify(ctx)
+	if err != nil {
+		resp.RetMsg = err.Error()
+		return
+	}
 
 	data := s.cli.Data()
 	resp.Data, err = data.MarshalBinary()
@@ -966,16 +965,15 @@ func (s *MetaService) Ping(w http.ResponseWriter, r *http.Request) {
 	resp.Index = s.cli.Data().Index
 	resp.RetCode = 0
 	resp.RetMsg = "ok"
-    WriteResp(w, &resp)
+	WriteResp(w, &resp)
 }
 
 func WriteResp(w http.ResponseWriter, v interface{}) error {
-    bytes, _ := json.Marshal(v)
-    _, err := w.Write(bytes)
-    if err != nil {
-        return err
-    }
+	bytes, _ := json.Marshal(v)
+	_, err := w.Write(bytes)
+	if err != nil {
+		return err
+	}
 
-    return nil
+	return nil
 }
-

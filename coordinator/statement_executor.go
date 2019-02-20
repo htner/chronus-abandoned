@@ -5,10 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sort"
-	"strconv"
-	"strings"
-	"time"
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/monitor"
@@ -18,6 +14,10 @@ import (
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxql"
+	"sort"
+	"strconv"
+	"strings"
+	"time"
 )
 
 // ErrDatabaseNameRequired is returned when executing statements that require a database,
@@ -30,7 +30,7 @@ type pointsWriter interface {
 
 // StatementExecutor executes a statement in the query.
 type StatementExecutor struct {
-	Node *influxdb.Node
+	Node       *influxdb.Node
 	MetaClient MetaClient
 
 	// TaskManager holds the StatementExecutor that handles task-related commands.
@@ -40,8 +40,8 @@ type StatementExecutor struct {
 	TSDBStore TSDBStore
 
 	// ShardMapper for mapping shards when executing a SELECT statement.
-	ShardMapper query.ShardMapper
-    ClusterExecutor ClusterExecutor
+	ShardMapper     query.ShardMapper
+	ClusterExecutor ClusterExecutor
 
 	// Holds monitoring data for SHOW STATS and SHOW DIAGNOSTICS.
 	Monitor *monitor.Monitor

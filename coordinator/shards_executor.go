@@ -2,60 +2,59 @@ package coordinator
 
 import (
 	"context"
-	"fmt"
-	"math/rand"
-	"sync"
-	"sort"
-	"time"
 	"errors"
-	"net"
-	"github.com/influxdata/influxdb/services/meta"
-	"github.com/influxdata/influxdb/query"
-	"github.com/influxdata/influxdb/tsdb"
-	"github.com/influxdata/influxdb/models"
+	"fmt"
 	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxql"
+	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/tracing"
+	"github.com/influxdata/influxdb/query"
+	"github.com/influxdata/influxdb/services/meta"
+	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxql"
 	"go.uber.org/zap"
+	"math/rand"
+	"net"
+	"sort"
+	"sync"
+	"time"
 )
-
 
 type ClusterExecutor interface {
 	WithLogger(log *zap.Logger)
 	TagKeys(auth query.Authorizer, Shards []meta.ShardInfo, cond influxql.Expr) ([]tsdb.TagKeys, error)
 	TagValues(auth query.Authorizer, shards []meta.ShardInfo, cond influxql.Expr) ([]tsdb.TagValues, error)
 	MeasurementNames(auth query.Authorizer, database string, cond influxql.Expr) ([][]byte, error)
-    SeriesCardinality(database string) (int64, error)
-    DeleteSeries(database string, sources []influxql.Source, condition influxql.Expr) error
-    DeleteDatabase(database string) error
-    DeleteMeasurement(database, name string) error
-    ExecuteStatement(stmt influxql.Statement, database string) error
-    FieldDimensions(m *influxql.Measurement, shards []meta.ShardInfo) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error)
+	SeriesCardinality(database string) (int64, error)
+	DeleteSeries(database string, sources []influxql.Source, condition influxql.Expr) error
+	DeleteDatabase(database string) error
+	DeleteMeasurement(database, name string) error
+	ExecuteStatement(stmt influxql.Statement, database string) error
+	FieldDimensions(m *influxql.Measurement, shards []meta.ShardInfo) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error)
 	IteratorCost(m *influxql.Measurement, opt query.IteratorOptions, shards []meta.ShardInfo) (query.IteratorCost, error)
-	MapType(m *influxql.Measurement, field string, shards []meta.ShardInfo) (influxql.DataType)
-    CreateIterator(ctx context.Context, m *influxql.Measurement, opt query.IteratorOptions, shards []meta.ShardInfo) (query.Iterator, error)
-    TaskManagerStatement(tm *query.TaskManager, stmt influxql.Statement, ctx *query.ExecutionContext) error
+	MapType(m *influxql.Measurement, field string, shards []meta.ShardInfo) influxql.DataType
+	CreateIterator(ctx context.Context, m *influxql.Measurement, opt query.IteratorOptions, shards []meta.ShardInfo) (query.Iterator, error)
+	TaskManagerStatement(tm *query.TaskManager, stmt influxql.Statement, ctx *query.ExecutionContext) error
 }
 
 type ClusterExecutorImpl struct {
-	Node *influxdb.Node
-	TSDBStore TSDBStore
-	MetaClient MetaClient
+	Node               *influxdb.Node
+	TSDBStore          TSDBStore
+	MetaClient         MetaClient
 	RemoteNodeExecutor RemoteNodeExecutor
-	Logger *zap.Logger
+	Logger             *zap.Logger
 }
 
 func NewClusterExecutor(n *influxdb.Node, s TSDBStore, m MetaClient, Config Config) ClusterExecutor {
 	return &ClusterExecutorImpl{
-		Node: n,
-		TSDBStore: s,
+		Node:       n,
+		TSDBStore:  s,
 		MetaClient: m,
 		RemoteNodeExecutor: &RemoteNodeExecutorImpl{
-			MetaClient: m,
-			DailTimeout: time.Duration(Config.DailTimeout),
+			MetaClient:         m,
+			DailTimeout:        time.Duration(Config.DailTimeout),
 			ShardReaderTimeout: time.Duration(Config.ShardReaderTimeout),
-			ClusterTracing: Config.ClusterTracing,
-        },
+			ClusterTracing:     Config.ClusterTracing,
+		},
 		Logger: zap.NewNop(),
 	}
 }
@@ -68,23 +67,23 @@ type RemoteNodeExecutor interface {
 	TagKeys(nodeId uint64, ShardIDs []uint64, cond influxql.Expr) ([]tsdb.TagKeys, error)
 	TagValues(nodeId uint64, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagValues, error)
 	MeasurementNames(nodeId uint64, database string, cond influxql.Expr) ([][]byte, error)
-    SeriesCardinality(nodeId uint64, database string) (int64, error)
-    DeleteSeries(nodeId uint64, database string, sources []influxql.Source, condition influxql.Expr) error
-    DeleteDatabase(nodeId uint64, database string) error
-    DeleteMeasurement(nodeId uint64, database, name string) error
-    ExecuteStatement(nodeId uint64, stmt influxql.Statement, database string) error
-    FieldDimensions(nodeId uint64, m *influxql.Measurement, shardIds []uint64) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error)
+	SeriesCardinality(nodeId uint64, database string) (int64, error)
+	DeleteSeries(nodeId uint64, database string, sources []influxql.Source, condition influxql.Expr) error
+	DeleteDatabase(nodeId uint64, database string) error
+	DeleteMeasurement(nodeId uint64, database, name string) error
+	ExecuteStatement(nodeId uint64, stmt influxql.Statement, database string) error
+	FieldDimensions(nodeId uint64, m *influxql.Measurement, shardIds []uint64) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error)
 	IteratorCost(nodeId uint64, m *influxql.Measurement, opt query.IteratorOptions, shardIds []uint64) (query.IteratorCost, error)
 	MapType(nodeId uint64, m *influxql.Measurement, field string, shardIds []uint64) (influxql.DataType, error)
-    CreateIterator(nodeId uint64, ctx context.Context, m *influxql.Measurement, opt query.IteratorOptions, shardIds []uint64) (query.Iterator, error)
-    TaskManagerStatement(nodeId uint64, stmt influxql.Statement) (*query.Result, error)
+	CreateIterator(nodeId uint64, ctx context.Context, m *influxql.Measurement, opt query.IteratorOptions, shardIds []uint64) (query.Iterator, error)
+	TaskManagerStatement(nodeId uint64, stmt influxql.Statement) (*query.Result, error)
 }
 
 type RemoteNodeExecutorImpl struct {
-	MetaClient MetaClient
-	DailTimeout time.Duration
-	ShardReaderTimeout   time.Duration
-	ClusterTracing bool
+	MetaClient         MetaClient
+	DailTimeout        time.Duration
+	ShardReaderTimeout time.Duration
+	ClusterTracing     bool
 }
 
 func (me *RemoteNodeExecutorImpl) CreateIterator(nodeId uint64, ctx context.Context, m *influxql.Measurement, opt query.IteratorOptions, shardIds []uint64) (query.Iterator, error) {
@@ -107,10 +106,10 @@ func (me *RemoteNodeExecutorImpl) CreateIterator(nodeId uint64, ctx context.Cont
 			*spanCtx = span.Context()
 		}
 		if err := EncodeTLV(conn, createIteratorRequestMessage, &CreateIteratorRequest{
-			ShardIDs: shardIds,
-            Measurement: *m, //TODO:改为Sources
-			Opt:      opt,
-			SpanContex: spanCtx,
+			ShardIDs:    shardIds,
+			Measurement: *m, //TODO:改为Sources
+			Opt:         opt,
+			SpanContex:  spanCtx,
 		}); err != nil {
 			return err
 		}
@@ -121,7 +120,6 @@ func (me *RemoteNodeExecutorImpl) CreateIterator(nodeId uint64, ctx context.Cont
 		} else if resp.Err != nil {
 			return err
 		}
-
 
 		return nil
 	}(); err != nil {
@@ -147,20 +145,20 @@ func (me *RemoteNodeExecutorImpl) MapType(nodeId uint64, m *influxql.Measurement
 	if err != nil {
 		return influxql.Unknown, err
 	}
-    defer conn.Close()
+	defer conn.Close()
 
 	measurement := *m
 	if measurement.SystemIterator != "" {
 		measurement.Name = measurement.SystemIterator
 	}
 
-    var resp MapTypeResponse
+	var resp MapTypeResponse
 	if err := func() error {
-        if err := EncodeTLV(conn, mapTypeRequestMessage, &MapTypeRequest{
-            Sources: influxql.Sources([]influxql.Source{&measurement}),
-            Field: field,
-            ShardIDs: shardIds,
-        }); err != nil {
+		if err := EncodeTLV(conn, mapTypeRequestMessage, &MapTypeRequest{
+			Sources:  influxql.Sources([]influxql.Source{&measurement}),
+			Field:    field,
+			ShardIDs: shardIds,
+		}); err != nil {
 			return err
 		}
 
@@ -172,10 +170,10 @@ func (me *RemoteNodeExecutorImpl) MapType(nodeId uint64, m *influxql.Measurement
 
 		return nil
 	}(); err != nil {
-        return influxql.Unknown, err
+		return influxql.Unknown, err
 	}
 
-    return resp.DataType, nil
+	return resp.DataType, nil
 }
 
 func (me *RemoteNodeExecutorImpl) IteratorCost(nodeId uint64, m *influxql.Measurement, opt query.IteratorOptions, shardIds []uint64) (query.IteratorCost, error) {
@@ -188,15 +186,15 @@ func (me *RemoteNodeExecutorImpl) IteratorCost(nodeId uint64, m *influxql.Measur
 	if err != nil {
 		return query.IteratorCost{}, err
 	}
-    defer conn.Close()
+	defer conn.Close()
 
-    var resp IteratorCostResponse
+	var resp IteratorCostResponse
 	if err := func() error {
-        if err := EncodeTLV(conn, iteratorCostRequestMessage, &IteratorCostRequest{
-            Sources: influxql.Sources([]influxql.Source{m}),
-            Opt: opt,
-            ShardIDs: shardIds,
-        }); err != nil {
+		if err := EncodeTLV(conn, iteratorCostRequestMessage, &IteratorCostRequest{
+			Sources:  influxql.Sources([]influxql.Source{m}),
+			Opt:      opt,
+			ShardIDs: shardIds,
+		}); err != nil {
 			return err
 		}
 
@@ -211,7 +209,7 @@ func (me *RemoteNodeExecutorImpl) IteratorCost(nodeId uint64, m *influxql.Measur
 		return query.IteratorCost{}, err
 	}
 
-    return resp.Cost, nil
+	return resp.Cost, nil
 }
 
 func (me *RemoteNodeExecutorImpl) FieldDimensions(nodeId uint64, m *influxql.Measurement, shardIds []uint64) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error) {
@@ -224,14 +222,14 @@ func (me *RemoteNodeExecutorImpl) FieldDimensions(nodeId uint64, m *influxql.Mea
 	if err != nil {
 		return nil, nil, err
 	}
-    defer conn.Close()
+	defer conn.Close()
 
-    var resp FieldDimensionsResponse
+	var resp FieldDimensionsResponse
 	if err := func() error {
-        var req FieldDimensionsRequest
-        req.ShardIDs = shardIds
-        req.Sources = influxql.Sources([]influxql.Source{m})
-        if err := EncodeTLV(conn, fieldDimensionsRequestMessage, &req); err != nil {
+		var req FieldDimensionsRequest
+		req.ShardIDs = shardIds
+		req.Sources = influxql.Sources([]influxql.Source{m})
+		if err := EncodeTLV(conn, fieldDimensionsRequestMessage, &req); err != nil {
 			return err
 		}
 
@@ -246,7 +244,7 @@ func (me *RemoteNodeExecutorImpl) FieldDimensions(nodeId uint64, m *influxql.Mea
 		return nil, nil, err
 	}
 
-    return resp.Fields, resp.Dimensions, nil
+	return resp.Fields, resp.Dimensions, nil
 }
 
 func (me *RemoteNodeExecutorImpl) TaskManagerStatement(nodeId uint64, stmt influxql.Statement) (*query.Result, error) {
@@ -259,14 +257,14 @@ func (me *RemoteNodeExecutorImpl) TaskManagerStatement(nodeId uint64, stmt influ
 	if err != nil {
 		return nil, err
 	}
-    defer conn.Close()
+	defer conn.Close()
 
-    var resp TaskManagerStatementResponse
+	var resp TaskManagerStatementResponse
 	if err := func() error {
-        var req TaskManagerStatementRequest
-        req.SetStatement(stmt.String())
-        req.SetDatabase("")
-        if err := EncodeTLV(conn, executeTaskManagerRequestMessage, &req); err != nil {
+		var req TaskManagerStatementRequest
+		req.SetStatement(stmt.String())
+		req.SetDatabase("")
+		if err := EncodeTLV(conn, executeTaskManagerRequestMessage, &req); err != nil {
 			return err
 		}
 
@@ -281,9 +279,9 @@ func (me *RemoteNodeExecutorImpl) TaskManagerStatement(nodeId uint64, stmt influ
 		return nil, err
 	}
 
-    result := &query.Result{}
-    *result = resp.Result
-    return result, nil
+	result := &query.Result{}
+	*result = resp.Result
+	return result, nil
 }
 
 func (me *RemoteNodeExecutorImpl) ExecuteStatement(nodeId uint64, stmt influxql.Statement, database string) error {
@@ -296,13 +294,13 @@ func (me *RemoteNodeExecutorImpl) ExecuteStatement(nodeId uint64, stmt influxql.
 	if err != nil {
 		return err
 	}
-    defer conn.Close()
+	defer conn.Close()
 
 	if err := func() error {
-        var req ExecuteStatementRequest
-        req.SetStatement(stmt.String())
-        req.SetDatabase(database)
-        if err := EncodeTLV(conn, executeStatementRequestMessage, &req); err != nil {
+		var req ExecuteStatementRequest
+		req.SetStatement(stmt.String())
+		req.SetDatabase(database)
+		if err := EncodeTLV(conn, executeStatementRequestMessage, &req); err != nil {
 			return err
 		}
 
@@ -318,7 +316,7 @@ func (me *RemoteNodeExecutorImpl) ExecuteStatement(nodeId uint64, stmt influxql.
 		return err
 	}
 
-    return nil
+	return nil
 }
 
 func (me *RemoteNodeExecutorImpl) DeleteMeasurement(nodeId uint64, database, name string) error {
@@ -331,12 +329,12 @@ func (me *RemoteNodeExecutorImpl) DeleteMeasurement(nodeId uint64, database, nam
 	if err != nil {
 		return err
 	}
-    defer conn.Close()
+	defer conn.Close()
 
 	if err := func() error {
-        if err := EncodeTLV(conn, deleteMeasurementRequestMessage, &DeleteMeasurementRequest{
+		if err := EncodeTLV(conn, deleteMeasurementRequestMessage, &DeleteMeasurementRequest{
 			Database: database,
-            Name: name,
+			Name:     name,
 		}); err != nil {
 			return err
 		}
@@ -353,7 +351,7 @@ func (me *RemoteNodeExecutorImpl) DeleteMeasurement(nodeId uint64, database, nam
 		return err
 	}
 
-    return nil
+	return nil
 }
 
 func (me *RemoteNodeExecutorImpl) DeleteDatabase(nodeId uint64, database string) error {
@@ -366,10 +364,10 @@ func (me *RemoteNodeExecutorImpl) DeleteDatabase(nodeId uint64, database string)
 	if err != nil {
 		return err
 	}
-    defer conn.Close()
+	defer conn.Close()
 
 	if err := func() error {
-        if err := EncodeTLV(conn, deleteDatabaseRequestMessage, &DeleteDatabaseRequest{
+		if err := EncodeTLV(conn, deleteDatabaseRequestMessage, &DeleteDatabaseRequest{
 			Database: database,
 		}); err != nil {
 			return err
@@ -387,7 +385,7 @@ func (me *RemoteNodeExecutorImpl) DeleteDatabase(nodeId uint64, database string)
 		return err
 	}
 
-    return nil
+	return nil
 }
 
 func (me *RemoteNodeExecutorImpl) DeleteSeries(nodeId uint64, database string, sources []influxql.Source, cond influxql.Expr) error {
@@ -400,13 +398,13 @@ func (me *RemoteNodeExecutorImpl) DeleteSeries(nodeId uint64, database string, s
 	if err != nil {
 		return err
 	}
-    defer conn.Close()
+	defer conn.Close()
 
 	if err := func() error {
-        if err := EncodeTLV(conn, deleteSeriesRequestMessage, &DeleteSeriesRequest{
+		if err := EncodeTLV(conn, deleteSeriesRequestMessage, &DeleteSeriesRequest{
 			Database: database,
-            Sources: influxql.Sources(sources),
-            Cond: cond,
+			Sources:  influxql.Sources(sources),
+			Cond:     cond,
 		}); err != nil {
 			return err
 		}
@@ -423,7 +421,7 @@ func (me *RemoteNodeExecutorImpl) DeleteSeries(nodeId uint64, database string, s
 		return err
 	}
 
-    return nil
+	return nil
 }
 func (me *RemoteNodeExecutorImpl) SeriesCardinality(nodeId uint64, database string) (int64, error) {
 	dialer := &NodeDialer{
@@ -435,11 +433,11 @@ func (me *RemoteNodeExecutorImpl) SeriesCardinality(nodeId uint64, database stri
 	if err != nil {
 		return -1, err
 	}
-    defer conn.Close()
+	defer conn.Close()
 
 	var n int64
 	if err := func() error {
-        if err := EncodeTLV(conn, seriesCardinalityRequestMessage, &SeriesCardinalityRequest{
+		if err := EncodeTLV(conn, seriesCardinalityRequestMessage, &SeriesCardinalityRequest{
 			Database: database,
 		}); err != nil {
 			return err
@@ -458,7 +456,7 @@ func (me *RemoteNodeExecutorImpl) SeriesCardinality(nodeId uint64, database stri
 		return -1, err
 	}
 
-    return n, nil
+	return n, nil
 }
 
 func (me *RemoteNodeExecutorImpl) MeasurementNames(nodeId uint64, database string, cond influxql.Expr) ([][]byte, error) {
@@ -471,13 +469,13 @@ func (me *RemoteNodeExecutorImpl) MeasurementNames(nodeId uint64, database strin
 	if err != nil {
 		return nil, err
 	}
-    defer conn.Close()
+	defer conn.Close()
 
 	var names [][]byte
 	if err := func() error {
 		if err := EncodeTLV(conn, measurementNamesRequestMessage, &MeasurementNamesRequest{
 			Database: database,
-			Cond:      cond,
+			Cond:     cond,
 		}); err != nil {
 			return err
 		}
@@ -508,14 +506,14 @@ func (me *RemoteNodeExecutorImpl) TagValues(nodeId uint64, shardIDs []uint64, co
 	if err != nil {
 		return nil, err
 	}
-    defer conn.Close()
+	defer conn.Close()
 
 	var tagValues []tsdb.TagValues
 	if err := func() error {
 		if err := EncodeTLV(conn, tagValuesRequestMessage, &TagValuesRequest{
 			TagKeysRequest{
 				ShardIDs: shardIDs,
-				Cond:      cond,
+				Cond:     cond,
 			},
 		}); err != nil {
 			return err
@@ -527,7 +525,6 @@ func (me *RemoteNodeExecutorImpl) TagValues(nodeId uint64, shardIDs []uint64, co
 		} else if resp.Err != "" {
 			return errors.New(resp.Err)
 		}
-
 
 		tagValues = resp.TagValues
 		return nil
@@ -549,13 +546,13 @@ func (me *RemoteNodeExecutorImpl) TagKeys(nodeId uint64, shardIDs []uint64, cond
 		return nil, err
 	}
 
-    defer conn.Close()
+	defer conn.Close()
 
 	var tagKeys []tsdb.TagKeys
 	if err := func() error {
 		if err := EncodeTLV(conn, tagKeysRequestMessage, &TagKeysRequest{
 			ShardIDs: shardIDs,
-			Cond:      cond,
+			Cond:     cond,
 		}); err != nil {
 			return err
 		}
@@ -579,31 +576,31 @@ func (me *RemoteNodeExecutorImpl) TagKeys(nodeId uint64, shardIDs []uint64, cond
 type NodeIds []uint64
 
 func NewNodeIdsByNodes(nodeInfos []meta.NodeInfo) NodeIds {
-    var ids []uint64
-    for _, ni := range nodeInfos {
-        ids = append(ids, ni.ID)
-    }
-    return NodeIds(ids)
+	var ids []uint64
+	for _, ni := range nodeInfos {
+		ids = append(ids, ni.ID)
+	}
+	return NodeIds(ids)
 }
 
 //TODO:取个达意的名字
 func NewNodeIdsByShards(Shards []meta.ShardInfo) NodeIds {
 	m := make(map[uint64]struct{})
 	for _, si := range Shards {
-        for _, owner := range si.Owners {
-            m[owner.NodeID] = struct{}{}
-        }
+		for _, owner := range si.Owners {
+			m[owner.NodeID] = struct{}{}
+		}
 	}
 
-    nodes := make([]uint64, 0, len(m))
-    for n, _ := range m {
-        nodes = append(nodes, n)
-    }
+	nodes := make([]uint64, 0, len(m))
+	for n, _ := range m {
+		nodes = append(nodes, n)
+	}
 	return nodes
 }
 
 func (me NodeIds) Apply(fn func(nodeId uint64)) {
-	for _, nodeID:= range me {
+	for _, nodeID := range me {
 		fn(nodeID)
 	}
 }
@@ -633,7 +630,7 @@ func NewNode2ShardIDs(mc MetaClient, localNode *influxdb.Node, shards []meta.Sha
 			defer wg.Add(-1)
 			dialer := &NodeDialer{
 				MetaClient: mc,
-				Timeout:    100*time.Millisecond, //TODO: from config
+				Timeout:    100 * time.Millisecond, //TODO: from config
 			}
 
 			conn, err := dialer.DialNode(id)
@@ -693,15 +690,15 @@ func (me Node2ShardIDs) Apply(fn func(nodeId uint64, shardIDs []uint64)) {
 }
 
 func (me *ClusterExecutorImpl) TaskManagerStatement(tm *query.TaskManager, stmt influxql.Statement, ctx *query.ExecutionContext) error {
-    type Result struct {
-        qr *query.Result
-        err error
-    }
+	type Result struct {
+		qr  *query.Result
+		err error
+	}
 
-    nodeInfos, err := me.MetaClient.DataNodes()
-    if err != nil {
-        return err
-    }
+	nodeInfos, err := me.MetaClient.DataNodes()
+	if err != nil {
+		return err
+	}
 
 	nodes := NewNodeIdsByNodes(nodeInfos)
 	results := make(map[uint64]*Result)
@@ -726,20 +723,20 @@ func (me *ClusterExecutorImpl) TaskManagerStatement(tm *query.TaskManager, stmt 
 		go func() {
 			defer wg.Add(-1)
 
-            var err error
-            var qr *query.Result
+			var err error
+			var qr *query.Result
 			if nodeId == me.Node.ID {
-                recvCtx := &query.ExecutionContext{
-                    Context: context.Background(),
-                    Results: make(chan *query.Result, 1),
-                }
-                err = tm.ExecuteStatement(stmt, recvCtx)
-                if err == nil {
-                    qr = <-recvCtx.Results
-                }
-            }else {
-                qr, err = me.RemoteNodeExecutor.TaskManagerStatement(nodeId, stmt)
-            }
+				recvCtx := &query.ExecutionContext{
+					Context: context.Background(),
+					Results: make(chan *query.Result, 1),
+				}
+				err = tm.ExecuteStatement(stmt, recvCtx)
+				if err == nil {
+					qr = <-recvCtx.Results
+				}
+			} else {
+				qr, err = me.RemoteNodeExecutor.TaskManagerStatement(nodeId, stmt)
+			}
 
 			if qr != nil && len(qr.Series) > 0 {
 				qr.Series[0].Columns = append(qr.Series[0].Columns, "host")
@@ -748,11 +745,11 @@ func (me *ClusterExecutorImpl) TaskManagerStatement(tm *query.TaskManager, stmt 
 				}
 			}
 
-            mutex.Lock()
-            results[nodeId] = &Result{qr: qr, err: err}
-            mutex.Unlock()
-        }()
-    }
+			mutex.Lock()
+			results[nodeId] = &Result{qr: qr, err: err}
+			mutex.Unlock()
+		}()
+	}
 
 	nodes.Apply(fn)
 	wg.Wait()
@@ -789,22 +786,22 @@ func (me *ClusterExecutorImpl) TaskManagerStatement(tm *query.TaskManager, stmt 
 		}
 	}
 
-    if err != nil {
-    	return err
-    }
-    ctx.Send(&query.Result{Series: models.Rows{row}})
-    return nil
+	if err != nil {
+		return err
+	}
+	ctx.Send(&query.Result{Series: models.Rows{row}})
+	return nil
 }
 
 func (me *ClusterExecutorImpl) ExecuteStatement(stmt influxql.Statement, database string) error {
-    type Result struct {
-        err error
-    }
+	type Result struct {
+		err error
+	}
 
-    nodeInfos, err := me.MetaClient.DataNodes()
-    if err != nil {
-        return err
-    }
+	nodeInfos, err := me.MetaClient.DataNodes()
+	if err != nil {
+		return err
+	}
 
 	nodes := NewNodeIdsByNodes(nodeInfos)
 	results := make(map[uint64]*Result)
@@ -818,20 +815,20 @@ func (me *ClusterExecutorImpl) ExecuteStatement(stmt influxql.Statement, databas
 
 			var err error
 			if nodeId == me.Node.ID {
-                switch t := stmt.(type) {
-                case *influxql.DropShardStatement:
-                    err = me.TSDBStore.DeleteShard(t.ID)
-                case *influxql.DropRetentionPolicyStatement:
-                    err = me.TSDBStore.DeleteRetentionPolicy(t.Database, t.Name)
-                case *influxql.DropDatabaseStatement:
-                    err = me.TSDBStore.DeleteDatabase(t.Name)
-                case *influxql.DropMeasurementStatement:
-                    err = me.TSDBStore.DeleteMeasurement(database, t.Name)
-                case *influxql.DropSeriesStatement:
-                    err = me.TSDBStore.DeleteSeries(database, t.Sources, t.Condition)
-                default:
-                    err = query.ErrInvalidQuery
-                }
+				switch t := stmt.(type) {
+				case *influxql.DropShardStatement:
+					err = me.TSDBStore.DeleteShard(t.ID)
+				case *influxql.DropRetentionPolicyStatement:
+					err = me.TSDBStore.DeleteRetentionPolicy(t.Database, t.Name)
+				case *influxql.DropDatabaseStatement:
+					err = me.TSDBStore.DeleteDatabase(t.Name)
+				case *influxql.DropMeasurementStatement:
+					err = me.TSDBStore.DeleteMeasurement(database, t.Name)
+				case *influxql.DropSeriesStatement:
+					err = me.TSDBStore.DeleteSeries(database, t.Sources, t.Condition)
+				default:
+					err = query.ErrInvalidQuery
+				}
 			} else {
 				err = me.RemoteNodeExecutor.ExecuteStatement(nodeId, stmt, database)
 			}
@@ -851,18 +848,18 @@ func (me *ClusterExecutorImpl) ExecuteStatement(stmt influxql.Statement, databas
 			return r.err
 		}
 	}
-    return nil
+	return nil
 }
 
 func (me *ClusterExecutorImpl) DeleteMeasurement(database, name string) error {
-    type Result struct {
-        err error
-    }
+	type Result struct {
+		err error
+	}
 
-    shards, err := DatabaseShards(me.MetaClient, database)
-    if err != nil {
-        return err
-    }
+	shards, err := DatabaseShards(me.MetaClient, database)
+	if err != nil {
+		return err
+	}
 	nodes := NewNodeIdsByShards(shards)
 	results := make(map[uint64]*Result)
 
@@ -895,18 +892,18 @@ func (me *ClusterExecutorImpl) DeleteMeasurement(database, name string) error {
 			return r.err
 		}
 	}
-    return nil
+	return nil
 }
 
 func (me *ClusterExecutorImpl) DeleteDatabase(database string) error {
-    type Result struct {
-        err error
-    }
+	type Result struct {
+		err error
+	}
 
-    shards, err := DatabaseShards(me.MetaClient, database)
-    if err != nil {
-        return err
-    }
+	shards, err := DatabaseShards(me.MetaClient, database)
+	if err != nil {
+		return err
+	}
 	nodes := NewNodeIdsByShards(shards)
 	results := make(map[uint64]*Result)
 
@@ -939,18 +936,18 @@ func (me *ClusterExecutorImpl) DeleteDatabase(database string) error {
 			return r.err
 		}
 	}
-    return nil
+	return nil
 }
 
 func (me *ClusterExecutorImpl) DeleteSeries(database string, sources []influxql.Source, cond influxql.Expr) error {
-    type Result struct {
-        err error
-    }
+	type Result struct {
+		err error
+	}
 
-    shards, err := DatabaseShards(me.MetaClient, database)
-    if err != nil {
-        return err
-    }
+	shards, err := DatabaseShards(me.MetaClient, database)
+	if err != nil {
+		return err
+	}
 	nodes := NewNodeIdsByShards(shards)
 	results := make(map[uint64]*Result)
 
@@ -963,8 +960,8 @@ func (me *ClusterExecutorImpl) DeleteSeries(database string, sources []influxql.
 
 			var err error
 			if nodeId == me.Node.ID {
-                // Convert "now()" to current time.
-                cond = influxql.Reduce(cond, &influxql.NowValuer{Now: time.Now().UTC()})
+				// Convert "now()" to current time.
+				cond = influxql.Reduce(cond, &influxql.NowValuer{Now: time.Now().UTC()})
 				err = me.TSDBStore.DeleteSeries(database, sources, cond)
 			} else {
 				err = me.RemoteNodeExecutor.DeleteSeries(nodeId, database, sources, cond)
@@ -985,19 +982,19 @@ func (me *ClusterExecutorImpl) DeleteSeries(database string, sources []influxql.
 			return r.err
 		}
 	}
-    return nil
+	return nil
 }
 
 func (me *ClusterExecutorImpl) SeriesCardinality(database string) (int64, error) {
 	type Result struct {
-		n int64
+		n   int64
 		err error
 	}
 
-    shards, err := DatabaseShards(me.MetaClient, database)
-    if err != nil {
-        return -1, err
-    }
+	shards, err := DatabaseShards(me.MetaClient, database)
+	if err != nil {
+		return -1, err
+	}
 	nodes := NewNodeIdsByShards(shards)
 	results := make(map[uint64]*Result)
 
@@ -1026,12 +1023,12 @@ func (me *ClusterExecutorImpl) SeriesCardinality(database string) (int64, error)
 	nodes.Apply(fn)
 	wg.Wait()
 
-    var sum int64
+	var sum int64
 	for _, r := range results {
 		if r.err != nil {
 			return -1, r.err
 		}
-        sum += r.n
+		sum += r.n
 	}
 	return sum, nil
 }
@@ -1039,7 +1036,7 @@ func (me *ClusterExecutorImpl) SeriesCardinality(database string) (int64, error)
 func DatabaseShards(c MetaClient, db string) ([]meta.ShardInfo, error) {
 	dbInfo := c.Database(db)
 	if dbInfo == nil {
-        return nil, fmt.Errorf("not find database %s", db)
+		return nil, fmt.Errorf("not find database %s", db)
 	}
 	var shards []meta.ShardInfo
 	for _, rp := range dbInfo.RetentionPolicies {
@@ -1048,19 +1045,19 @@ func DatabaseShards(c MetaClient, db string) ([]meta.ShardInfo, error) {
 		}
 	}
 
-    return shards, nil
+	return shards, nil
 }
 
 func (me *ClusterExecutorImpl) MeasurementNames(auth query.Authorizer, database string, cond influxql.Expr) ([][]byte, error) {
 	type Result struct {
 		names [][]byte
-		err error
+		err   error
 	}
 
-    shards, err := DatabaseShards(me.MetaClient, database)
-    if err != nil {
-        return nil, err
-    }
+	shards, err := DatabaseShards(me.MetaClient, database)
+	if err != nil {
+		return nil, err
+	}
 	nodes := NewNodeIdsByShards(shards)
 	results := make(map[uint64]*Result)
 
@@ -1116,7 +1113,7 @@ func (me *ClusterExecutorImpl) MeasurementNames(auth query.Authorizer, database 
 func (me *ClusterExecutorImpl) TagValues(auth query.Authorizer, shards []meta.ShardInfo, cond influxql.Expr) ([]tsdb.TagValues, error) {
 	type TagValuesResult struct {
 		values []tsdb.TagValues
-		err error
+		err    error
 	}
 
 	n2s := NewNode2ShardIDs(me.MetaClient, me.Node, shards)
@@ -1187,13 +1184,13 @@ func (me *ClusterExecutorImpl) TagValues(auth query.Authorizer, shards []meta.Sh
 }
 
 func (me *ClusterExecutorImpl) CreateIterator(ctx context.Context, m *influxql.Measurement, opt query.IteratorOptions, shards []meta.ShardInfo) (query.Iterator, error) {
-    type Result struct {
-        iter query.Iterator
-        err error
-    }
+	type Result struct {
+		iter query.Iterator
+		err  error
+	}
 
-    n2s := NewNode2ShardIDs(me.MetaClient, me.Node, shards)
-    results := make(map[uint64]*Result)
+	n2s := NewNode2ShardIDs(me.MetaClient, me.Node, shards)
+	results := make(map[uint64]*Result)
 
 	var mutex sync.Mutex
 	var wg sync.WaitGroup
@@ -1202,12 +1199,12 @@ func (me *ClusterExecutorImpl) CreateIterator(ctx context.Context, m *influxql.M
 		go func() {
 			defer wg.Add(-1)
 
-            var iter query.Iterator
+			var iter query.Iterator
 			var err error
 			if nodeId == me.Node.ID {
 				//localCtx only use for local node
 				localCtx := ctx
-                iter, err = func() (query.Iterator, error) {
+				iter, err = func() (query.Iterator, error) {
 					span := tracing.SpanFromContext(localCtx)
 					if span != nil {
 						span = span.StartSpan(fmt.Sprintf("local_node_id: %d", me.Node.ID))
@@ -1215,33 +1212,33 @@ func (me *ClusterExecutorImpl) CreateIterator(ctx context.Context, m *influxql.M
 
 						localCtx = tracing.NewContextWithSpan(localCtx, span)
 					}
-                    sg := me.TSDBStore.ShardGroup(shardIDs)
-                    if m.Regex != nil {
-                        measurements := sg.MeasurementsByRegex(m.Regex.Val)
-                        inputs := make([]query.Iterator, 0, len(measurements))
-                        if err := func() error {
-                            for _, measurement := range measurements {
-                                mm := m.Clone()
-                                mm.Name = measurement
-                                input, err := sg.CreateIterator(localCtx, mm, opt)
-                                if err != nil {
-                                    return err
-                                }
-                                inputs = append(inputs, input)
-                            }
-                            return nil
-                        }(); err != nil {
-                            query.Iterators(inputs).Close()
-                            return nil, err
-                        }
+					sg := me.TSDBStore.ShardGroup(shardIDs)
+					if m.Regex != nil {
+						measurements := sg.MeasurementsByRegex(m.Regex.Val)
+						inputs := make([]query.Iterator, 0, len(measurements))
+						if err := func() error {
+							for _, measurement := range measurements {
+								mm := m.Clone()
+								mm.Name = measurement
+								input, err := sg.CreateIterator(localCtx, mm, opt)
+								if err != nil {
+									return err
+								}
+								inputs = append(inputs, input)
+							}
+							return nil
+						}(); err != nil {
+							query.Iterators(inputs).Close()
+							return nil, err
+						}
 
-                        return query.Iterators(inputs).Merge(opt)
-                    }
-                    return sg.CreateIterator(localCtx, m, opt)
-                }()
-            } else {
-                iter, err = me.RemoteNodeExecutor.CreateIterator(nodeId, ctx, m, opt, shardIDs)
-            }
+						return query.Iterators(inputs).Merge(opt)
+					}
+					return sg.CreateIterator(localCtx, m, opt)
+				}()
+			} else {
+				iter, err = me.RemoteNodeExecutor.CreateIterator(nodeId, ctx, m, opt, shardIDs)
+			}
 
 			mutex.Lock()
 			results[nodeId] = &Result{iter: iter, err: err}
@@ -1254,77 +1251,77 @@ func (me *ClusterExecutorImpl) CreateIterator(ctx context.Context, m *influxql.M
 	wg.Wait()
 
 	seriesN := 0
-    inputs := make([]query.Iterator, 0, len(results))
-    for _, r := range results {
-        if r.err != nil {
-            return nil, r.err
-        }
-        if r.iter != nil {
-        	stats := r.iter.Stats()
-        	seriesN += stats.SeriesN
+	inputs := make([]query.Iterator, 0, len(results))
+	for _, r := range results {
+		if r.err != nil {
+			return nil, r.err
+		}
+		if r.iter != nil {
+			stats := r.iter.Stats()
+			seriesN += stats.SeriesN
 			inputs = append(inputs, r.iter)
 		}
-    }
+	}
 
 	if opt.MaxSeriesN > 0 && seriesN > opt.MaxSeriesN {
 		query.Iterators(inputs).Close()
 		return nil, fmt.Errorf("max-select-series limit exceeded: (%d/%d)", seriesN, opt.MaxSeriesN)
 	}
-    return query.Iterators(inputs).Merge(opt)
+	return query.Iterators(inputs).Merge(opt)
 }
 
 func (me *ClusterExecutorImpl) MapType(m *influxql.Measurement, field string, shards []meta.ShardInfo) influxql.DataType {
 	type Result struct {
 		dataType influxql.DataType
-		err error
+		err      error
 	}
 
 	n2s := NewNode2ShardIDs(me.MetaClient, me.Node, shards)
-    var result Result
+	var result Result
 	fn := func(nodeId uint64, shardIDs []uint64) {
-        if nodeId == me.Node.ID {
-            sg := me.TSDBStore.ShardGroup(shardIDs)
-            var names []string
-            if m.Regex != nil {
-                names = sg.MeasurementsByRegex(m.Regex.Val)
-            } else {
-                names = []string{m.Name}
-            }
+		if nodeId == me.Node.ID {
+			sg := me.TSDBStore.ShardGroup(shardIDs)
+			var names []string
+			if m.Regex != nil {
+				names = sg.MeasurementsByRegex(m.Regex.Val)
+			} else {
+				names = []string{m.Name}
+			}
 
-            typ := influxql.Unknown
-            for _, name := range names {
-                if m.SystemIterator != "" {
-                    name = m.SystemIterator
-                }
-                t := sg.MapType(name, field)
-                if typ.LessThan(t) {
-                    typ = t
-                }
-            }
-            result.dataType = typ
-        }
-        return
-    }
+			typ := influxql.Unknown
+			for _, name := range names {
+				if m.SystemIterator != "" {
+					name = m.SystemIterator
+				}
+				t := sg.MapType(name, field)
+				if typ.LessThan(t) {
+					typ = t
+				}
+			}
+			result.dataType = typ
+		}
+		return
+	}
 
-    n2s.Apply(fn)
-    if result.dataType != influxql.Unknown {
-        return result.dataType
-    }
+	n2s.Apply(fn)
+	if result.dataType != influxql.Unknown {
+		return result.dataType
+	}
 
-    //本地失败, 尝试从remote node获取
-    results := make(map[uint64]*Result)
+	//本地失败, 尝试从remote node获取
+	results := make(map[uint64]*Result)
 	var mutex sync.Mutex
 	var wg sync.WaitGroup
 	fn = func(nodeId uint64, shardIDs []uint64) {
-        wg.Add(1)
+		wg.Add(1)
 		go func() {
 			defer wg.Add(-1)
 
 			if nodeId != me.Node.ID {
-                mutex.Lock()
-                typ, err := me.RemoteNodeExecutor.MapType(nodeId, m, field, shardIDs)
-                results[nodeId] = &Result{dataType: typ, err: err}
-                mutex.Unlock()
+				mutex.Lock()
+				typ, err := me.RemoteNodeExecutor.MapType(nodeId, m, field, shardIDs)
+				results[nodeId] = &Result{dataType: typ, err: err}
+				mutex.Unlock()
 			}
 			return
 		}()
@@ -1333,28 +1330,28 @@ func (me *ClusterExecutorImpl) MapType(m *influxql.Measurement, field string, sh
 	n2s.Apply(fn)
 	wg.Wait()
 
-    typ := influxql.Unknown
-    for nodeId, r := range results {
-        if r.err != nil {
-            me.Logger.Warn("results have error", zap.Error(r.err), zap.Uint64("node", nodeId))
-            continue
-        }
-        if typ.LessThan(r.dataType) {
-            typ = r.dataType
-        }
-    }
+	typ := influxql.Unknown
+	for nodeId, r := range results {
+		if r.err != nil {
+			me.Logger.Warn("results have error", zap.Error(r.err), zap.Uint64("node", nodeId))
+			continue
+		}
+		if typ.LessThan(r.dataType) {
+			typ = r.dataType
+		}
+	}
 
-    return typ
+	return typ
 }
 
 func (me *ClusterExecutorImpl) IteratorCost(m *influxql.Measurement, opt query.IteratorOptions, shards []meta.ShardInfo) (query.IteratorCost, error) {
-    type Result struct {
-        cost query.IteratorCost
-        err error
-    }
+	type Result struct {
+		cost query.IteratorCost
+		err  error
+	}
 
-    n2s := NewNode2ShardIDs(me.MetaClient, me.Node, shards)
-    results := make(map[uint64]*Result)
+	n2s := NewNode2ShardIDs(me.MetaClient, me.Node, shards)
+	results := make(map[uint64]*Result)
 
 	var mutex sync.Mutex
 	var wg sync.WaitGroup
@@ -1363,11 +1360,11 @@ func (me *ClusterExecutorImpl) IteratorCost(m *influxql.Measurement, opt query.I
 		go func() {
 			defer wg.Add(-1)
 
-            var cost query.IteratorCost
+			var cost query.IteratorCost
 			var err error
 			if nodeId == me.Node.ID {
-                sg := me.TSDBStore.ShardGroup(shardIDs)
-                if m.Regex != nil {
+				sg := me.TSDBStore.ShardGroup(shardIDs)
+				if m.Regex != nil {
 					cost, err = func() (query.IteratorCost, error) {
 						var costs query.IteratorCost
 						measurements := sg.MeasurementsByRegex(m.Regex.Val)
@@ -1398,7 +1395,7 @@ func (me *ClusterExecutorImpl) IteratorCost(m *influxql.Measurement, opt query.I
 	wg.Wait()
 
 	var costs query.IteratorCost
-	for _, r :=  range results {
+	for _, r := range results {
 		if r.err != nil {
 			return costs, r.err
 		}
@@ -1409,9 +1406,9 @@ func (me *ClusterExecutorImpl) IteratorCost(m *influxql.Measurement, opt query.I
 
 func (me *ClusterExecutorImpl) FieldDimensions(m *influxql.Measurement, shards []meta.ShardInfo) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error) {
 	type Result struct {
-        fields map[string]influxql.DataType
-        dimensions map[string]struct{}
-		err error
+		fields     map[string]influxql.DataType
+		dimensions map[string]struct{}
+		err        error
 	}
 
 	n2s := NewNode2ShardIDs(me.MetaClient, me.Node, shards)
@@ -1424,24 +1421,24 @@ func (me *ClusterExecutorImpl) FieldDimensions(m *influxql.Measurement, shards [
 		go func() {
 			defer wg.Add(-1)
 
-            var fields map[string]influxql.DataType
-            var dimensions map[string]struct{}
+			var fields map[string]influxql.DataType
+			var dimensions map[string]struct{}
 			var err error
 			if nodeId == me.Node.ID {
-                sg := me.TSDBStore.ShardGroup(shardIDs)
-                var measurements []string
-                if m.Regex != nil {
-                    measurements = sg.MeasurementsByRegex(m.Regex.Val)
-                } else {
-                    measurements = []string{m.Name}
-                }
+				sg := me.TSDBStore.ShardGroup(shardIDs)
+				var measurements []string
+				if m.Regex != nil {
+					measurements = sg.MeasurementsByRegex(m.Regex.Val)
+				} else {
+					measurements = []string{m.Name}
+				}
 				fields, dimensions, err = sg.FieldDimensions(measurements)
 			} else {
 				fields, dimensions, err = me.RemoteNodeExecutor.FieldDimensions(nodeId, m, shardIDs)
 			}
 
 			mutex.Lock()
-            results[nodeId] = &Result{fields: fields, dimensions: dimensions, err: err}
+			results[nodeId] = &Result{fields: fields, dimensions: dimensions, err: err}
 			mutex.Unlock()
 			return
 		}()
@@ -1466,13 +1463,13 @@ func (me *ClusterExecutorImpl) FieldDimensions(m *influxql.Measurement, shards [
 		}
 	}
 
-    return fields, dimensions, nil
+	return fields, dimensions, nil
 }
 
 func (me *ClusterExecutorImpl) TagKeys(auth query.Authorizer, shards []meta.ShardInfo, cond influxql.Expr) ([]tsdb.TagKeys, error) {
 	type TagKeysResult struct {
 		keys []tsdb.TagKeys
-		err error
+		err  error
 	}
 
 	n2s := NewNode2ShardIDs(me.MetaClient, me.Node, shards)
@@ -1541,10 +1538,10 @@ func (me *ClusterExecutorImpl) TagKeys(auth query.Authorizer, shards []meta.Shar
 }
 
 type StringSlice []string
+
 func (a StringSlice) Len() int           { return len(a) }
 func (a StringSlice) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a StringSlice) Less(i, j int) bool { return a[i] < a[j] }
-
 
 // NodeDialer dials connections to a given node.
 type NodeDialer struct {

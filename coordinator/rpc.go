@@ -1,18 +1,18 @@
 package coordinator
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
-	"time"
+	"github.com/angopher/chronus/coordinator/internal"
 	"github.com/gogo/protobuf/proto"
-    "github.com/angopher/chronus/coordinator/internal"
-	"github.com/influxdata/influxql"
 	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/tsdb"
-	"github.com/influxdata/influxdb/query"
-	"encoding/json"
-	"regexp"
 	"github.com/influxdata/influxdb/pkg/tracing"
+	"github.com/influxdata/influxdb/query"
+	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxql"
+	"regexp"
+	"time"
 )
 
 //go:generate protoc --gogo_out=. internal/data.proto
@@ -205,105 +205,105 @@ func (w *ExecuteStatementResponse) UnmarshalBinary(buf []byte) error {
 }
 
 type TaskManagerStatementRequest struct {
-    ExecuteStatementRequest
+	ExecuteStatementRequest
 }
 
 type TaskManagerStatementResponse struct {
-    Result query.Result
-    Err string
+	Result query.Result
+	Err    string
 }
 
 type TaskManagerStatementRespProto struct {
-    Result []byte
-    Err string
+	Result []byte
+	Err    string
 }
 
 func (w *TaskManagerStatementResponse) MarshalBinary() ([]byte, error) {
-    var proto TaskManagerStatementRespProto
-    buf, err := w.Result.MarshalJSON()
-    if err != nil {
-        return nil, err
-    }
-    proto.Result = buf
-    proto.Err = w.Err
+	var proto TaskManagerStatementRespProto
+	buf, err := w.Result.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	proto.Result = buf
+	proto.Err = w.Err
 	return json.Marshal(proto)
 }
 
 func (w *TaskManagerStatementResponse) UnmarshalBinary(buf []byte) error {
-    var proto TaskManagerStatementRespProto
-    err := json.Unmarshal(buf, &proto)
-    if err != nil {
-        return nil
-    }
-    w.Err = proto.Err
-    return w.Result.UnmarshalJSON(proto.Result)
+	var proto TaskManagerStatementRespProto
+	err := json.Unmarshal(buf, &proto)
+	if err != nil {
+		return nil
+	}
+	w.Err = proto.Err
+	return w.Result.UnmarshalJSON(proto.Result)
 }
 
 type MapTypeRequest struct {
-	Sources influxql.Sources
-    Field string
+	Sources  influxql.Sources
+	Field    string
 	ShardIDs []uint64
 }
 type MapTypeRequestProto struct {
-	Sources []byte
-    Field string
+	Sources  []byte
+	Field    string
 	ShardIDs []uint64
 }
 
 func (r *MapTypeRequest) MarshalBinary() ([]byte, error) {
-    var proto MapTypeRequestProto
+	var proto MapTypeRequestProto
 	proto.ShardIDs = r.ShardIDs
-    proto.Field = r.Field
-    var err error
-    if proto.Sources, err = r.Sources.MarshalBinary(); err != nil {
-        return nil, err
+	proto.Field = r.Field
+	var err error
+	if proto.Sources, err = r.Sources.MarshalBinary(); err != nil {
+		return nil, err
 	}
 	return json.Marshal(proto)
 }
 
-func (r *MapTypeRequest) UnmarshalBinary(b []byte) (error) {
-    var proto MapTypeRequestProto
+func (r *MapTypeRequest) UnmarshalBinary(b []byte) error {
+	var proto MapTypeRequestProto
 	if err := json.Unmarshal(b, &proto); err != nil {
 		return err
 	}
 	if err := r.Sources.UnmarshalBinary(proto.Sources); err != nil {
 		return err
 	}
-    r.Field = proto.Field
-    r.ShardIDs = proto.ShardIDs
+	r.Field = proto.Field
+	r.ShardIDs = proto.ShardIDs
 	return nil
 }
 
 type MapTypeResponse struct {
 	DataType influxql.DataType
-	Err string
+	Err      string
 }
 
 func (r *MapTypeResponse) MarshalBinary() ([]byte, error) {
 	return json.Marshal(r)
 }
 
-func (r *MapTypeResponse) UnmarshalBinary(b []byte) (error) {
+func (r *MapTypeResponse) UnmarshalBinary(b []byte) error {
 	return json.Unmarshal(b, r)
 }
 
 type IteratorCostRequest struct {
-	Sources influxql.Sources
-	Opt query.IteratorOptions
+	Sources  influxql.Sources
+	Opt      query.IteratorOptions
 	ShardIDs []uint64
 }
 type IteartorCostRequestProto struct {
-	Sources []byte
-	Opt []byte
+	Sources  []byte
+	Opt      []byte
 	ShardIDs []uint64
 }
 
 func (r *IteratorCostRequest) MarshalBinary() ([]byte, error) {
-    var proto IteartorCostRequestProto
+	var proto IteartorCostRequestProto
 	proto.ShardIDs = r.ShardIDs
-    var err error
-    if proto.Sources, err = r.Sources.MarshalBinary(); err != nil {
-        return nil, err
+	var err error
+	if proto.Sources, err = r.Sources.MarshalBinary(); err != nil {
+		return nil, err
 	}
 	if proto.Opt, err = r.Opt.MarshalBinary(); err != nil {
 		return nil, err
@@ -312,8 +312,8 @@ func (r *IteratorCostRequest) MarshalBinary() ([]byte, error) {
 	return json.Marshal(proto)
 }
 
-func (r *IteratorCostRequest) UnmarshalBinary(b []byte) (error) {
-    var proto IteartorCostRequestProto
+func (r *IteratorCostRequest) UnmarshalBinary(b []byte) error {
+	var proto IteartorCostRequestProto
 	if err := json.Unmarshal(b, &proto); err != nil {
 		return err
 	}
@@ -323,103 +323,103 @@ func (r *IteratorCostRequest) UnmarshalBinary(b []byte) (error) {
 	if err := r.Opt.UnmarshalBinary(proto.Opt); err != nil {
 		return err
 	}
-    r.ShardIDs = proto.ShardIDs
+	r.ShardIDs = proto.ShardIDs
 	return nil
 }
 
 type IteratorCostResponse struct {
 	Cost query.IteratorCost
-	Err string
+	Err  string
 }
 
 func (r *IteratorCostResponse) MarshalBinary() ([]byte, error) {
 	return json.Marshal(r)
 }
 
-func (r *IteratorCostResponse) UnmarshalBinary(b []byte) (error) {
+func (r *IteratorCostResponse) UnmarshalBinary(b []byte) error {
 	return json.Unmarshal(b, r)
 }
 
 type DeleteMeasurementRequest struct {
-    Database string
-    Name string
+	Database string
+	Name     string
 }
 
 func (r *DeleteMeasurementRequest) MarshalBinary() ([]byte, error) {
-    return json.Marshal(r)
+	return json.Marshal(r)
 }
-func (r *DeleteMeasurementRequest) UnmarshalBinary(b []byte) (error) {
-    return json.Unmarshal(b, r)
+func (r *DeleteMeasurementRequest) UnmarshalBinary(b []byte) error {
+	return json.Unmarshal(b, r)
 }
 
 type DeleteMeasurementResponse struct {
-    Err string
+	Err string
 }
 
 func (r *DeleteMeasurementResponse) MarshalBinary() ([]byte, error) {
-    return json.Marshal(r)
+	return json.Marshal(r)
 }
-func (r *DeleteMeasurementResponse) UnmarshalBinary(b []byte) (error) {
-    return json.Unmarshal(b, r)
+func (r *DeleteMeasurementResponse) UnmarshalBinary(b []byte) error {
+	return json.Unmarshal(b, r)
 }
 
 type DeleteDatabaseRequest struct {
-    Database string
+	Database string
 }
 
 func (r *DeleteDatabaseRequest) MarshalBinary() ([]byte, error) {
-    return json.Marshal(r)
+	return json.Marshal(r)
 }
-func (r *DeleteDatabaseRequest) UnmarshalBinary(b []byte) (error) {
-    return json.Unmarshal(b, r)
+func (r *DeleteDatabaseRequest) UnmarshalBinary(b []byte) error {
+	return json.Unmarshal(b, r)
 }
 
 type DeleteDatabaseResponse struct {
-    Err string
+	Err string
 }
 
 func (r *DeleteDatabaseResponse) MarshalBinary() ([]byte, error) {
-    return json.Marshal(r)
+	return json.Marshal(r)
 }
-func (r *DeleteDatabaseResponse) UnmarshalBinary(b []byte) (error) {
-    return json.Unmarshal(b, r)
+func (r *DeleteDatabaseResponse) UnmarshalBinary(b []byte) error {
+	return json.Unmarshal(b, r)
 }
 
 type DeleteSeriesRequest struct {
-    Database string
-    Sources influxql.Sources
-    Cond influxql.Expr
+	Database string
+	Sources  influxql.Sources
+	Cond     influxql.Expr
 }
 
 type DeleteSeriesRequestProto struct {
-    Database string
-    Sources []byte
-    Cond string
+	Database string
+	Sources  []byte
+	Cond     string
 }
 
 func (r *DeleteSeriesRequest) MarshalBinary() ([]byte, error) {
-    var proto DeleteSeriesRequestProto
-    proto.Database = r.Database
-    var err error
-    if proto.Sources, err = r.Sources.MarshalBinary(); err != nil {
-        return nil, err
-    }
+	var proto DeleteSeriesRequestProto
+	proto.Database = r.Database
+	var err error
+	if proto.Sources, err = r.Sources.MarshalBinary(); err != nil {
+		return nil, err
+	}
 	if r.Cond != nil {
 		proto.Cond = r.Cond.String()
 	}
-    return json.Marshal(proto)
+	return json.Marshal(proto)
 }
 
-func (r *DeleteSeriesRequest) UnmarshalBinary(b []byte) (error) {
-    var proto DeleteSeriesRequestProto
-    err := json.Unmarshal(b, &proto)
-    if err != nil {
-        return err
-    }
+func (r *DeleteSeriesRequest) UnmarshalBinary(b []byte) error {
+	var proto DeleteSeriesRequestProto
+	err := json.Unmarshal(b, &proto)
+	if err != nil {
+		return err
+	}
 
 	if err = (&r.Sources).UnmarshalBinary(proto.Sources); err != nil {
-        return err
-    }
+		return err
+	}
 	r.Database = proto.Database
 	if proto.Cond != "" {
 		r.Cond, err = influxql.ParseExpr(proto.Cond)
@@ -428,48 +428,47 @@ func (r *DeleteSeriesRequest) UnmarshalBinary(b []byte) (error) {
 }
 
 type DeleteSeriesResponse struct {
-    Err string
+	Err string
 }
 
 func (r *DeleteSeriesResponse) MarshalBinary() ([]byte, error) {
-    return json.Marshal(r)
+	return json.Marshal(r)
 }
-func (r *DeleteSeriesResponse) UnmarshalBinary(b []byte) (error) {
-    return json.Unmarshal(b, r)
+func (r *DeleteSeriesResponse) UnmarshalBinary(b []byte) error {
+	return json.Unmarshal(b, r)
 }
 
 type SeriesCardinalityRequest struct {
-    Database string
+	Database string
 }
 
 func (r *SeriesCardinalityRequest) MarshalBinary() ([]byte, error) {
-    return json.Marshal(r)
+	return json.Marshal(r)
 }
-func (r *SeriesCardinalityRequest) UnmarshalBinary(b []byte) (error) {
-    return json.Unmarshal(b, r)
+func (r *SeriesCardinalityRequest) UnmarshalBinary(b []byte) error {
+	return json.Unmarshal(b, r)
 }
 
 type SeriesCardinalityResponse struct {
-    N int64
-    Err string
+	N   int64
+	Err string
 }
 
 func (r *SeriesCardinalityResponse) MarshalBinary() ([]byte, error) {
-    return json.Marshal(r)
+	return json.Marshal(r)
 }
-func (r *SeriesCardinalityResponse) UnmarshalBinary(b []byte) (error) {
-    return json.Unmarshal(b, r)
+func (r *SeriesCardinalityResponse) UnmarshalBinary(b []byte) error {
+	return json.Unmarshal(b, r)
 }
-
 
 type MeasurementNamesRequest struct {
 	Database string
-	Cond influxql.Expr
+	Cond     influxql.Expr
 }
 
 type MeasurementNamesProto struct {
 	Database string
-	Cond string
+	Cond     string
 }
 
 func (r *MeasurementNamesRequest) MarshalBinary() ([]byte, error) {
@@ -498,7 +497,7 @@ func (r *MeasurementNamesRequest) UnmarshalBinary(b []byte) error {
 
 type MeasurementNamesResponse struct {
 	Names [][]byte
-	Err string
+	Err   string
 }
 
 func (r *MeasurementNamesResponse) MarshalBinary() ([]byte, error) {
@@ -512,12 +511,12 @@ func (r *MeasurementNamesResponse) UnmarshalBinary(b []byte) error {
 
 type TagKeysRequest struct {
 	ShardIDs []uint64
-	Cond influxql.Expr
+	Cond     influxql.Expr
 }
 
 type TagKeysProto struct {
 	ShardIDs []byte
-	Cond string
+	Cond     string
 }
 
 func (r *TagKeysRequest) MarshalBinary() ([]byte, error) {
@@ -552,7 +551,7 @@ func (r *TagKeysRequest) UnmarshalBinary(b []byte) error {
 
 type TagKeysResponse struct {
 	TagKeys []tsdb.TagKeys
-	Err string
+	Err     string
 }
 
 func (r *TagKeysResponse) MarshalBinary() ([]byte, error) {
@@ -570,7 +569,7 @@ type TagValuesRequest struct {
 
 type TagValuesResponse struct {
 	TagValues []tsdb.TagValues
-	Err string
+	Err       string
 }
 
 func (r *TagValuesResponse) MarshalBinary() ([]byte, error) {
@@ -584,9 +583,9 @@ func (r *TagValuesResponse) UnmarshalBinary(b []byte) error {
 
 // CreateIteratorRequest represents a request to create a remote iterator.
 type CreateIteratorRequest struct {
-	SpanContex *tracing.SpanContext
-	ShardIDs []uint64
-	Opt      query.IteratorOptions
+	SpanContex  *tracing.SpanContext
+	ShardIDs    []uint64
+	Opt         query.IteratorOptions
 	Measurement influxql.Measurement
 }
 
@@ -608,12 +607,12 @@ func (r *CreateIteratorRequest) MarshalBinary() ([]byte, error) {
 		return nil, err
 	}
 
-	mm := Measurement {
-		Database: r.Measurement.Database,
+	mm := Measurement{
+		Database:        r.Measurement.Database,
 		RetentionPolicy: r.Measurement.RetentionPolicy,
-		Name: r.Measurement.Name,
-		IsTarget: r.Measurement.IsTarget,
-		SystemIterator: r.Measurement.SystemIterator,
+		Name:            r.Measurement.Name,
+		IsTarget:        r.Measurement.IsTarget,
+		SystemIterator:  r.Measurement.SystemIterator,
 	}
 
 	if r.Measurement.Regex != nil {
@@ -633,9 +632,9 @@ func (r *CreateIteratorRequest) MarshalBinary() ([]byte, error) {
 	}
 
 	return proto.Marshal(&internal.CreateIteratorRequest{
-		ShardIDs: r.ShardIDs,
+		ShardIDs:    r.ShardIDs,
 		Measurement: mbuf,
-		Opt:      buf,
+		Opt:         buf,
 		SpanContext: sbuf,
 	})
 }
@@ -658,11 +657,11 @@ func (r *CreateIteratorRequest) UnmarshalBinary(data []byte) error {
 	}
 
 	r.Measurement = influxql.Measurement{
-		Database: mm.Database,
+		Database:        mm.Database,
 		RetentionPolicy: mm.RetentionPolicy,
-		Name: mm.Name,
-		IsTarget: mm.IsTarget,
-		SystemIterator: mm.SystemIterator,
+		Name:            mm.Name,
+		IsTarget:        mm.IsTarget,
+		SystemIterator:  mm.SystemIterator,
 	}
 
 	if len(mm.Regex) > 0 {
@@ -687,8 +686,8 @@ func (r *CreateIteratorRequest) UnmarshalBinary(data []byte) error {
 // CreateIteratorResponse represents a response from remote iterator creation.
 type CreateIteratorResponse struct {
 	DataType influxql.DataType
-	SeriesN int
-	Err error
+	SeriesN  int
+	Err      error
 }
 
 // MarshalBinary encodes r to a binary format.
@@ -781,4 +780,3 @@ func (r *FieldDimensionsResponse) UnmarshalBinary(data []byte) error {
 	}
 	return nil
 }
-

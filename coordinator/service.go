@@ -15,13 +15,13 @@ import (
 
 	//"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/tracing"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxql"
 	"go.uber.org/zap"
-	"github.com/influxdata/influxdb/models"
 	"sync/atomic"
 )
 
@@ -62,7 +62,6 @@ const (
 	mapTypeFail = "mapTypeFail"
 )
 
-
 // Service processes data received over raw TCP connections.
 type Service struct {
 	mu      sync.RWMutex
@@ -80,7 +79,7 @@ type Service struct {
 	TaskManager *query.TaskManager
 
 	Logger *zap.Logger
-	stats *InternalServiceStatistics
+	stats  *InternalServiceStatistics
 }
 
 // NewService returns a new instance of Service.
@@ -88,7 +87,7 @@ func NewService(c Config) *Service {
 	return &Service{
 		closing: make(chan struct{}),
 		//Logger:  log.New(os.Stderr, "[cluster] ", log.LstdFlags),
-		stats: &InternalServiceStatistics{},
+		stats:  &InternalServiceStatistics{},
 		Logger: zap.NewNop(),
 	}
 }
@@ -144,33 +143,33 @@ func (w *Service) Statistics(tags map[string]string) []models.Statistic {
 		Name: "coordinator_service",
 		Tags: tags,
 		Values: map[string]interface{}{
-			writeShardReq:           atomic.LoadInt64(&w.stats.WriteShardReq),
-			writeShardPointsReq:      atomic.LoadInt64(&w.stats.WriteShardPointsReq),
-			writeShardFail:  atomic.LoadInt64(&w.stats.WriteShardFail),
+			writeShardReq:       atomic.LoadInt64(&w.stats.WriteShardReq),
+			writeShardPointsReq: atomic.LoadInt64(&w.stats.WriteShardPointsReq),
+			writeShardFail:      atomic.LoadInt64(&w.stats.WriteShardFail),
 
-			createIteratorReq :atomic.LoadInt64(&w.stats.CreateIteratorReq),
-			createIteratorFail :atomic.LoadInt64(&w.stats.CreateIteratorFail),
+			createIteratorReq:  atomic.LoadInt64(&w.stats.CreateIteratorReq),
+			createIteratorFail: atomic.LoadInt64(&w.stats.CreateIteratorFail),
 
-			fieldDimensionsReq:            atomic.LoadInt64(&w.stats.FieldDimensionsReq),
-			fieldDimensionsFail:            atomic.LoadInt64(&w.stats.FieldDimensionsFail),
+			fieldDimensionsReq:  atomic.LoadInt64(&w.stats.FieldDimensionsReq),
+			fieldDimensionsFail: atomic.LoadInt64(&w.stats.FieldDimensionsFail),
 
-			tagKeysReq:          atomic.LoadInt64(&w.stats.TagKeysReq),
-			tagKeysFail:          atomic.LoadInt64(&w.stats.TagKeysFail),
+			tagKeysReq:  atomic.LoadInt64(&w.stats.TagKeysReq),
+			tagKeysFail: atomic.LoadInt64(&w.stats.TagKeysFail),
 
-			tagValuesReq:       atomic.LoadInt64(&w.stats.TagValuesReq),
-			tagValuesFail:       atomic.LoadInt64(&w.stats.TagValuesFail),
+			tagValuesReq:  atomic.LoadInt64(&w.stats.TagValuesReq),
+			tagValuesFail: atomic.LoadInt64(&w.stats.TagValuesFail),
 
-			measurementNamesReq:       atomic.LoadInt64(&w.stats.MeasurementNamesReq),
-			measurementNamesFail:       atomic.LoadInt64(&w.stats.MeasurementNamesFail),
+			measurementNamesReq:  atomic.LoadInt64(&w.stats.MeasurementNamesReq),
+			measurementNamesFail: atomic.LoadInt64(&w.stats.MeasurementNamesFail),
 
-			seriesCardinalityReq:    atomic.LoadInt64(&w.stats.SeriesCardinalityReq),
-			seriesCardinalityFail:    atomic.LoadInt64(&w.stats.SeriesCardinalityFail),
+			seriesCardinalityReq:  atomic.LoadInt64(&w.stats.SeriesCardinalityReq),
+			seriesCardinalityFail: atomic.LoadInt64(&w.stats.SeriesCardinalityFail),
 
-			iteratorCostReq:           atomic.LoadInt64(&w.stats.IteratorCostReq),
-			iteratorCostFail:           atomic.LoadInt64(&w.stats.IteratorCostFail),
+			iteratorCostReq:  atomic.LoadInt64(&w.stats.IteratorCostReq),
+			iteratorCostFail: atomic.LoadInt64(&w.stats.IteratorCostFail),
 
-			mapTypeReq:         atomic.LoadInt64(&w.stats.MapTypeReq),
-			mapTypeFail:       atomic.LoadInt64(&w.stats.MapTypeFail),
+			mapTypeReq:  atomic.LoadInt64(&w.stats.MapTypeReq),
+			mapTypeFail: atomic.LoadInt64(&w.stats.MapTypeFail),
 		},
 	}}
 }

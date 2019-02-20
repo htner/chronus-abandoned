@@ -1,12 +1,12 @@
 package coordinator
 
 import (
-    "time"
-    "io"
-	"github.com/influxdata/influxdb/query"
-	"github.com/influxdata/influxql"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxql"
+	"io"
+	"time"
 )
 
 // TSDBStore is an interface for accessing the time series data store.
@@ -40,4 +40,3 @@ var _ TSDBStore = LocalTSDBStore{}
 type LocalTSDBStore struct {
 	*tsdb.Store
 }
-

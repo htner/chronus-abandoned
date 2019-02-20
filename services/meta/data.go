@@ -12,11 +12,11 @@ import (
 
 	"fmt"
 
+	internal "github.com/angopher/chronus/services/meta/internal"
 	"github.com/gogo/protobuf/proto"
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/query"
-	internal "github.com/angopher/chronus/services/meta/internal"
 	"github.com/influxdata/influxql"
 )
 

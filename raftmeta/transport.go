@@ -1,19 +1,19 @@
 package raftmeta
 
-import(
+import (
 	"bytes"
 	"context"
-	"net"
-    "encoding/json"
-    "fmt"
-    "io/ioutil"
-	"net/http"
-    "strconv"
-	"time"
-    "github.com/angopher/chronus/raftmeta/internal"
-    "github.com/angopher/chronus/x"
-    "github.com/coreos/etcd/raft/raftpb"
+	"encoding/json"
+	"fmt"
+	"github.com/angopher/chronus/raftmeta/internal"
+	"github.com/angopher/chronus/x"
+	"github.com/coreos/etcd/raft/raftpb"
 	"go.uber.org/zap"
+	"io/ioutil"
+	"net"
+	"net/http"
+	"strconv"
+	"time"
 )
 
 func (s *RaftNode) HandleUpdateCluster(w http.ResponseWriter, r *http.Request) {
@@ -53,11 +53,10 @@ func (s *RaftNode) HandleUpdateCluster(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-
 	cc := raftpb.ConfChange{
-		ID: s.ID,
-		Type: typ,
-		NodeID: nodeId,
+		ID:      s.ID,
+		Type:    typ,
+		NodeID:  nodeId,
 		Context: data,
 	}
 	err = s.ProposeConfChange(context.Background(), cc)
@@ -82,7 +81,7 @@ func (s *RaftNode) HandleMessage(w http.ResponseWriter, r *http.Request) {
 	err = msg.Unmarshal(data)
 	x.Check(err)
 	if msg.Type != raftpb.MsgHeartbeat && msg.Type != raftpb.MsgHeartbeatResp {
-        s.Logger.Info("recv message", zap.String("type:", msg.Type.String()))
+		s.Logger.Info("recv message", zap.String("type:", msg.Type.String()))
 	}
 	s.RecvRaftRPC(context.Background(), msg)
 }
@@ -114,17 +113,15 @@ func Request(url string, data []byte) error {
 		return err
 	}
 	defer res.Body.Close()
-    resData, err := ioutil.ReadAll(res.Body)
-    if err != nil {
-        return err
-    }
+	resData, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		return err
+	}
 
-    resp := &CommonResp{RetCode: -1}
-    err = json.Unmarshal(resData, resp)
-    if resp.RetCode != 0 {
-        return fmt.Errorf("fail. err:%s", resp.RetMsg)
-    }
+	resp := &CommonResp{RetCode: -1}
+	err = json.Unmarshal(resData, resp)
+	if resp.RetCode != 0 {
+		return fmt.Errorf("fail. err:%s", resp.RetMsg)
+	}
 	return nil
 }
-
-

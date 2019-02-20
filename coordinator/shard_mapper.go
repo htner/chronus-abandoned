@@ -14,24 +14,24 @@ import (
 // ClusterShardMapper implements a ShardMapper for local shards.
 type ClusterShardMapper struct {
 	MetaClient interface {
-        ShardGroupsByTimeRange(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error)
-    }
-	Node *influxdb.Node
-    ClusterExecutor interface {
-        IteratorCost(m *influxql.Measurement, opt query.IteratorOptions, shards []meta.ShardInfo) (query.IteratorCost, error)
-        MapType(m *influxql.Measurement, field string, shards []meta.ShardInfo) (influxql.DataType)
-        CreateIterator(ctx context.Context, m *influxql.Measurement, opt query.IteratorOptions, shards []meta.ShardInfo) (query.Iterator, error)
-        FieldDimensions(m *influxql.Measurement, shards []meta.ShardInfo) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error)
-    }
+		ShardGroupsByTimeRange(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error)
+	}
+	Node            *influxdb.Node
+	ClusterExecutor interface {
+		IteratorCost(m *influxql.Measurement, opt query.IteratorOptions, shards []meta.ShardInfo) (query.IteratorCost, error)
+		MapType(m *influxql.Measurement, field string, shards []meta.ShardInfo) influxql.DataType
+		CreateIterator(ctx context.Context, m *influxql.Measurement, opt query.IteratorOptions, shards []meta.ShardInfo) (query.Iterator, error)
+		FieldDimensions(m *influxql.Measurement, shards []meta.ShardInfo) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error)
+	}
 }
 
 // MapShards maps the sources to the appropriate shards into an IteratorCreator.
 func (e *ClusterShardMapper) MapShards(sources influxql.Sources, t influxql.TimeRange, opt query.SelectOptions) (query.ShardGroup, error) {
 	a := &ClusterShardMapping{
-        MetaClient: e.MetaClient,
-        Node: e.Node,
-		shardInfos: make(map[Source][]meta.ShardInfo),
-        ClusterExecutor: e.ClusterExecutor,
+		MetaClient:      e.MetaClient,
+		Node:            e.Node,
+		shardInfos:      make(map[Source][]meta.ShardInfo),
+		ClusterExecutor: e.ClusterExecutor,
 	}
 
 	tmin := time.Unix(0, t.MinTimeNano())
@@ -90,17 +90,17 @@ func (e *ClusterShardMapper) mapShards(a *ClusterShardMapping, sources influxql.
 
 // ShardMapper maps data sources to a list of shard information.
 type ClusterShardMapping struct {
-    shardInfos map[Source][]meta.ShardInfo
-    ClusterExecutor interface {
-        IteratorCost(m *influxql.Measurement, opt query.IteratorOptions, shards []meta.ShardInfo) (query.IteratorCost, error)
-        MapType(m *influxql.Measurement, field string, shards []meta.ShardInfo) (influxql.DataType)
-        CreateIterator(ctx context.Context, m *influxql.Measurement, opt query.IteratorOptions, shards []meta.ShardInfo) (query.Iterator, error)
-        FieldDimensions(m *influxql.Measurement, shards []meta.ShardInfo) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error)
-    }
+	shardInfos      map[Source][]meta.ShardInfo
+	ClusterExecutor interface {
+		IteratorCost(m *influxql.Measurement, opt query.IteratorOptions, shards []meta.ShardInfo) (query.IteratorCost, error)
+		MapType(m *influxql.Measurement, field string, shards []meta.ShardInfo) influxql.DataType
+		CreateIterator(ctx context.Context, m *influxql.Measurement, opt query.IteratorOptions, shards []meta.ShardInfo) (query.Iterator, error)
+		FieldDimensions(m *influxql.Measurement, shards []meta.ShardInfo) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error)
+	}
 	MetaClient interface {
-        ShardGroupsByTimeRange(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error)
-    }
-    Node *influxdb.Node
+		ShardGroupsByTimeRange(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error)
+	}
+	Node *influxdb.Node
 
 	// MinTime is the minimum time that this shard mapper will allow.
 	// Any attempt to use a time before this one will automatically result in using
@@ -149,7 +149,7 @@ func (a *ClusterShardMapping) MapType(m *influxql.Measurement, field string) inf
 	shards := a.shardInfos[source]
 	if shards == nil {
 		return influxql.Unknown
-    }
+	}
 
 	return a.ClusterExecutor.MapType(m, field, shards)
 }
@@ -173,7 +173,7 @@ func (a *ClusterShardMapping) CreateIterator(ctx context.Context, m *influxql.Me
 		opt.EndTime = a.MaxTime.UnixNano()
 	}
 
-    return a.ClusterExecutor.CreateIterator(ctx, m, opt, shards)
+	return a.ClusterExecutor.CreateIterator(ctx, m, opt, shards)
 }
 
 func (a *ClusterShardMapping) IteratorCost(m *influxql.Measurement, opt query.IteratorOptions) (query.IteratorCost, error) {

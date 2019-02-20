@@ -4,10 +4,10 @@ package meta
 
 import (
 	"bytes"
-	"fmt"
 	crand "crypto/rand"
 	"crypto/sha256"
 	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
