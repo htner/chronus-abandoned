@@ -15,7 +15,7 @@ require (
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
 	github.com/influxdata/influxdb v1.7.4
 	github.com/influxdata/influxql v0.0.0-20180925231337-1cbfca8e56b6
-	github.com/influxdata/platform v0.0.0-20190117200541-d500d3cf5589 // indirect
+	github.com/influxdata/platform v0.0.0-20190117200541-d500d3cf5589
 	github.com/influxdata/roaring v0.4.12 // indirect
 	github.com/influxdata/usage-client v0.0.0-20160829180054-6d3895376368
 	github.com/klauspost/compress v1.4.1 // indirect
