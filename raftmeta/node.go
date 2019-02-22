@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/angopher/chronus/raftmeta/internal"
-	"github.com/angopher/chronus/services/meta"
 	"github.com/angopher/chronus/x"
 	"github.com/coreos/etcd/pkg/wait"
 	"github.com/coreos/etcd/raft"
@@ -15,6 +14,7 @@ import (
 	"github.com/dgraph-io/badger/options"
 	"github.com/dgraph-io/dgraph/raftwal"
 	"github.com/influxdata/influxdb/logger"
+	"github.com/influxdata/influxdb/services/meta"
 	"go.uber.org/zap"
 	"golang.org/x/net/trace"
 	"math/rand"
@@ -123,7 +123,7 @@ type Checksum struct {
 
 type RaftNode struct {
 	rwMutex       sync.RWMutex
-	MetaCli       *meta.Client
+	MetaCli       MetaClient
 	leases        *meta.Leases
 	ID            uint64
 	Val           string

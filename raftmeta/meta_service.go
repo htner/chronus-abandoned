@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/angopher/chronus/raftmeta/internal"
-	"github.com/angopher/chronus/services/meta"
 	"github.com/angopher/chronus/x"
+	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxql"
 	"io/ioutil"
 	"net/http"
@@ -976,4 +976,5 @@ func WriteResp(w http.ResponseWriter, v interface{}) error {
 	}
 
 	return nil
+
 }

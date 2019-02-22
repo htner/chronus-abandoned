@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"github.com/angopher/chronus/raftmeta/internal"
-	"github.com/angopher/chronus/services/meta"
 	"github.com/angopher/chronus/x"
+	"github.com/influxdata/influxdb/services/meta"
 	"go.uber.org/zap"
 	"time"
 )
