@@ -9,11 +9,12 @@ import (
 	"math/rand"
 	"net/http"
 	"time"
+	"net"
+
+	"github.com/influxdata/influxdb/services/meta"
+	"github.com/influxdata/influxql"
 
 	"github.com/angopher/chronus/raftmeta"
-	"github.com/angopher/chronus/services/meta"
-	"github.com/influxdata/influxql"
-	"net"
 )
 
 type MetaClientImpl struct {

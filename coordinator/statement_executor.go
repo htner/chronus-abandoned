@@ -5,19 +5,21 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
+	"strconv"
+	"strings"
+	"time"
+
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/monitor"
 	"github.com/influxdata/influxdb/pkg/tracing"
 	"github.com/influxdata/influxdb/pkg/tracing/fields"
 	"github.com/influxdata/influxdb/query"
-	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxql"
-	"sort"
-	"strconv"
-	"strings"
-	"time"
+
+	"github.com/influxdata/influxdb/services/meta"
 )
 
 // ErrDatabaseNameRequired is returned when executing statements that require a database,

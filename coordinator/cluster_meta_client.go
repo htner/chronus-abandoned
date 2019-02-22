@@ -2,7 +2,7 @@ package coordinator
 
 import (
 	"fmt"
-	"github.com/angopher/chronus/services/meta"
+	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxql"
 	"go.uber.org/zap"
 	"time"

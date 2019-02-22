@@ -11,8 +11,8 @@ import (
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/coordinator"
 	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/services/meta"
 )
 
 // TODO(benbjohnson): Rewrite tests to use cluster_test.MetaClient.

@@ -4,19 +4,20 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/pkg/tracing"
-	"github.com/influxdata/influxdb/query"
-	"github.com/influxdata/influxdb/services/meta"
-	"github.com/influxdata/influxdb/tsdb"
-	"github.com/influxdata/influxql"
-	"go.uber.org/zap"
 	"math/rand"
 	"net"
 	"sort"
 	"sync"
 	"time"
+
+	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/pkg/tracing"
+	"github.com/influxdata/influxdb/query"
+	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxql"
+	"github.com/influxdata/influxdb/services/meta"
+	"go.uber.org/zap"
 )
 
 type ClusterExecutor interface {

@@ -12,17 +12,18 @@ import (
 	"net"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	//"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/tracing"
 	"github.com/influxdata/influxdb/query"
-	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxql"
 	"go.uber.org/zap"
-	"sync/atomic"
+
+	"github.com/influxdata/influxdb/services/meta"
 )
 
 // MaxMessageSize defines how large a message can be before we reject it

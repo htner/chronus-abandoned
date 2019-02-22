@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/query"
-	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxql"
+	"github.com/influxdata/influxdb/services/meta"
 )
 
 // ClusterShardMapper implements a ShardMapper for local shards.
