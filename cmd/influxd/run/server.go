@@ -12,8 +12,6 @@ import (
 	"runtime/pprof"
 	"time"
 
-	"github.com/angopher/chronus/coordinator"
-	"github.com/angopher/chronus/services/meta"
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/flux/control"
 	"github.com/influxdata/influxdb/logger"
@@ -41,6 +39,10 @@ import (
 	_ "github.com/influxdata/influxdb/tsdb/engine"
 	// Initialize the index package
 	_ "github.com/influxdata/influxdb/tsdb/index"
+
+	"github.com/angopher/chronus/coordinator"
+	imeta "github.com/angopher/chronus/services/meta"
+	"github.com/angopher/chronus/services/hh"
 )
 
 var startTime time.Time
@@ -71,13 +73,15 @@ type Server struct {
 
 	Logger *zap.Logger
 
-	MetaClient        *meta.Client
+    Node *influxdb.Node
+	MetaClient        *imeta.Client
 	ClusterMetaClient *coordinator.ClusterMetaClient
 
 	TSDBStore     *tsdb.Store
 	QueryExecutor *query.Executor
 	PointsWriter  *coordinator.PointsWriter
 	ShardWriter   *coordinator.ShardWriter
+	HintedHandoff *hh.Service
 	Subscriber    *subscriber.Service
 
 	Services []Service
@@ -174,7 +178,7 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 
 		Logger: logger.New(os.Stderr),
 
-		MetaClient: meta.NewClient(c.Meta),
+		MetaClient: imeta.NewClient(c.Meta),
 		//when node.ID is zero?
 		ClusterMetaClient: coordinator.NewMetaClient(c.Meta, c.Coordinator, node.ID),
 
@@ -217,7 +221,10 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 			return nil, err
 		}
 	}
-	node.Node.ID = n.ID
+    s.Node.ID = n.ID
+	if err := s.Node.Save(); err != nil {
+		return nil, err
+	}
 
 	s.TSDBStore = tsdb.NewStore(c.Data.Dir)
 	s.TSDBStore.EngineOptions.Config = c.Data
@@ -241,7 +248,7 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 	s.PointsWriter.WriteTimeout = time.Duration(c.Coordinator.WriteTimeout)
 	s.PointsWriter.TSDBStore = s.TSDBStore
 	s.PointsWriter.ShardWriter = s.ShardWriter
-	s.PointsWriter.Node = node
+	s.PointsWriter.Node = s.Node
 	s.PointsWriter.HintedHandoff = s.HintedHandoff
 
 	// Initialize cluster extecutor
@@ -251,15 +258,14 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 	// Initialize query executor.
 	s.QueryExecutor = query.NewExecutor()
 	s.QueryExecutor.StatementExecutor = &coordinator.StatementExecutor{
-		Node:            node,
+		Node:            s.Node,
 		MetaClient:      s.ClusterMetaClient,
 		TaskManager:     s.QueryExecutor.TaskManager,
 		TSDBStore:       s.TSDBStore,
 		ClusterExecutor: clusterExecutor,
-		ShardMapper: &coordinator.LocalShardMapper{
+		ShardMapper: &coordinator.ClusterShardMapper{
 			MetaClient:      s.ClusterMetaClient,
-			TSDBStore:       coordinator.LocalTSDBStore{Store: s.TSDBStore},
-			Node:            node,
+			Node:            s.Node,
 			ClusterExecutor: clusterExecutor,
 		},
 		Monitor:           s.Monitor,
@@ -341,9 +347,9 @@ func (s *Server) appendHTTPDService(c httpd.Config) {
 	}
 	srv := httpd.NewService(c)
 	srv.Handler.MetaClient = s.ClusterMetaClient
-	authorizer := meta.NewQueryAuthorizer(s.ClusterMetaClient)
+	authorizer := &imeta.Authorizer{}
 	srv.Handler.QueryAuthorizer = authorizer
-	srv.Handler.WriteAuthorizer = meta.NewWriteAuthorizer(s.ClusterMetaClient)
+	srv.Handler.WriteAuthorizer = authorizer
 	srv.Handler.QueryExecutor = s.QueryExecutor
 	srv.Handler.Monitor = s.Monitor
 	srv.Handler.PointsWriter = s.PointsWriter
@@ -514,7 +520,8 @@ func (s *Server) Open() error {
 		return fmt.Errorf("open points writer: %s", err)
 	}
 
-	s.PointsWriter.AddWriteSubscriber(s.Subscriber.Points())
+    //TODO:
+	//s.PointsWriter.AddWriteSubscriber(s.Subscriber.Points())
 
 	for _, service := range s.Services {
 		if err := service.Open(); err != nil {

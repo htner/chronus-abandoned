@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb"
-
-	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxql"
+
+	"github.com/angopher/chronus/services/meta"
 )
 
 func TestMetaClient_CreateDatabaseOnly(t *testing.T) {

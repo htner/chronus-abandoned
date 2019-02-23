@@ -15,6 +15,7 @@ import (
 	"github.com/influxdata/influxql"
 
 	"github.com/angopher/chronus/raftmeta"
+	imeta "github.com/angopher/chronus/services/meta"
 )
 
 type MetaClientImpl struct {
@@ -55,7 +56,7 @@ func (me *MetaClientImpl) ClusterID() uint64 {
 	return 0
 }
 
-func (me *MetaClientImpl) Data() (*meta.Data, error) {
+func (me *MetaClientImpl) Data() (*imeta.Data, error) {
 	var resp raftmeta.DataResp
 	err := RequestAndParseResponse(me.Url(raftmeta.DATA_PATH), "", &resp)
 	if err != nil {
@@ -66,7 +67,7 @@ func (me *MetaClientImpl) Data() (*meta.Data, error) {
 		return nil, errors.New(resp.RetMsg)
 	}
 
-	data := new(meta.Data)
+	data := new(imeta.Data)
 	err = data.UnmarshalBinary(resp.Data)
 	if err != nil {
 		return nil, err

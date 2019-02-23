@@ -6,10 +6,12 @@ import (
 	"github.com/influxdata/influxql"
 	"go.uber.org/zap"
 	"time"
+
+	imeta "github.com/angopher/chronus/services/meta"
 )
 
 type ClusterMetaClient struct {
-	cache          *meta.Client
+	cache          *imeta.Client
 	metaCli        *MetaClientImpl
 	pingIntervalMs int64
 	Logger         *zap.Logger
@@ -22,7 +24,7 @@ func NewMetaClient(mc *meta.Config, cc Config, nodeID uint64) *ClusterMetaClient
 			NodeID: nodeID,
 		},
 		pingIntervalMs: cc.PingMetaServiceIntervalMs,
-		cache:          meta.NewClient(mc),
+		cache:          imeta.NewClient(mc),
 	}
 }
 
@@ -32,6 +34,11 @@ func (me *ClusterMetaClient) WithLogger(log *zap.Logger) {
 
 func (me *ClusterMetaClient) Open() error {
 	return me.cache.Open()
+}
+
+func (me *ClusterMetaClient) MarshalBinary() ([]byte, error) {
+    //TODO
+    return nil, nil
 }
 
 func (me *ClusterMetaClient) AcquireLease(name string) (*meta.Lease, error) {

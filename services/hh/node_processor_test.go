@@ -8,7 +8,8 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/services/meta"
+
+	"github.com/angopher/chronus/services/meta"
 )
 
 type fakeShardWriter struct {

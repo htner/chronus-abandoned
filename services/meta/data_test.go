@@ -10,7 +10,7 @@ import (
 	"github.com/influxdata/influxdb/pkg/testing/assert"
 	"github.com/influxdata/influxql"
 
-	"github.com/influxdata/influxdb/services/meta"
+	"github.com/angopher/chronus/services/meta"
 )
 
 func Test_Data_DropDatabase(t *testing.T) {

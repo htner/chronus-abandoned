@@ -4,10 +4,10 @@ package meta
 
 import (
 	"bytes"
+	"fmt"
 	crand "crypto/rand"
 	"crypto/sha256"
 	"errors"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -21,6 +21,7 @@ import (
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/pkg/file"
 	"github.com/influxdata/influxql"
+	"github.com/influxdata/influxdb/services/meta"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -34,14 +35,6 @@ const (
 	// ShardGroupDeletedExpiration is the amount of time before a shard group info will be removed from cached
 	// data after it has been marked deleted (2 weeks).
 	ShardGroupDeletedExpiration = -2 * 7 * 24 * time.Hour
-)
-
-var (
-	// ErrServiceUnavailable is returned when the meta service is unavailable.
-	ErrServiceUnavailable = errors.New("meta service unavailable")
-
-	// ErrService is returned when the meta service returns an error.
-	ErrService = errors.New("meta service error")
 )
 
 // Client is used to execute commands on and read data from
@@ -71,17 +64,20 @@ type authUser struct {
 }
 
 // NewClient returns a new *Client.
-func NewClient(config *Config) *Client {
+func NewClient(config *meta.Config) *Client {
 	return &Client{
 		cacheData: &Data{
-			ClusterID: 0,
-			Index:     1,
-		},
-		closing:             make(chan struct{}),
-		changed:             make(chan struct{}),
-		logger:              zap.NewNop(),
-		authCache:           make(map[string]authUser),
-		path:                config.Dir,
+        //TODO:
+           // meta.Data {
+           //     ClusterID: 0,
+           //     Index:     1,
+           // },
+        },
+        closing:             make(chan struct{}),
+        changed:             make(chan struct{}),
+        logger:              zap.NewNop(),
+        authCache:           make(map[string]authUser),
+        path:                config.Dir,
 		retentionAutoCreate: config.RetentionAutoCreate,
 	}
 }
@@ -142,7 +138,7 @@ func (c *Client) data() *Data {
 }
 
 // Node returns a node by id.
-func (c *Client) DataNode(id uint64) (*NodeInfo, error) {
+func (c *Client) DataNode(id uint64) (*meta.NodeInfo, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	for _, n := range c.data().DataNodes {
@@ -154,12 +150,12 @@ func (c *Client) DataNode(id uint64) (*NodeInfo, error) {
 }
 
 // DataNodes returns the data nodes' info.
-func (c *Client) DataNodes() ([]NodeInfo, error) {
+func (c *Client) DataNodes() ([]meta.NodeInfo, error) {
 	return c.data().DataNodes, nil
 }
 
 // CreateDataNode will create a new data node in the metastore
-func (c *Client) CreateDataNode(httpAddr, tcpAddr string) (*NodeInfo, error) {
+func (c *Client) CreateDataNode(httpAddr, tcpAddr string) (*meta.NodeInfo, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	err := c.data().CreateDataNode(httpAddr, tcpAddr)
@@ -178,7 +174,7 @@ func (c *Client) CreateDataNode(httpAddr, tcpAddr string) (*NodeInfo, error) {
 }
 
 // DataNodeByHTTPHost returns the data node with the give http bind address
-func (c *Client) DataNodeByHTTPHost(httpAddr string) (*NodeInfo, error) {
+func (c *Client) DataNodeByHTTPHost(httpAddr string) (*meta.NodeInfo, error) {
 	nodes, _ := c.DataNodes()
 	for _, n := range nodes {
 		if n.Host == httpAddr {
@@ -190,7 +186,7 @@ func (c *Client) DataNodeByHTTPHost(httpAddr string) (*NodeInfo, error) {
 }
 
 // DataNodeByTCPHost returns the data node with the give http bind address
-func (c *Client) DataNodeByTCPHost(tcpAddr string) (*NodeInfo, error) {
+func (c *Client) DataNodeByTCPHost(tcpAddr string) (*meta.NodeInfo, error) {
 	nodes, _ := c.DataNodes()
 	for _, n := range nodes {
 		if n.TCPHost == tcpAddr {
@@ -216,12 +212,12 @@ func (c *Client) DeleteDataNode(id uint64) error {
 }
 
 // MetaNodes returns the meta nodes' info.
-func (c *Client) MetaNodes() ([]NodeInfo, error) {
+func (c *Client) MetaNodes() ([]meta.NodeInfo, error) {
 	return c.data().MetaNodes, nil
 }
 
 // MetaNodeByAddr returns the meta node's info.
-func (c *Client) MetaNodeByAddr(addr string) *NodeInfo {
+func (c *Client) MetaNodeByAddr(addr string) *meta.NodeInfo {
 	for _, n := range c.data().MetaNodes {
 		if n.Host == addr {
 			return &n
@@ -231,7 +227,7 @@ func (c *Client) MetaNodeByAddr(addr string) *NodeInfo {
 }
 
 // Database returns info for the requested database.
-func (c *Client) Database(name string) *DatabaseInfo {
+func (c *Client) Database(name string) *meta.DatabaseInfo {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
@@ -245,19 +241,19 @@ func (c *Client) Database(name string) *DatabaseInfo {
 }
 
 // Databases returns a list of all database infos.
-func (c *Client) Databases() []DatabaseInfo {
+func (c *Client) Databases() []meta.DatabaseInfo {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
 	dbs := c.cacheData.Databases
 	if dbs == nil {
-		return []DatabaseInfo{}
+		return []meta.DatabaseInfo{}
 	}
 	return dbs
 }
 
 // CreateDatabase creates a database or returns it if it already exists.
-func (c *Client) CreateDatabase(name string) (*DatabaseInfo, error) {
+func (c *Client) CreateDatabase(name string) (*meta.DatabaseInfo, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -273,7 +269,7 @@ func (c *Client) CreateDatabase(name string) (*DatabaseInfo, error) {
 
 	// create default retention policy
 	if c.retentionAutoCreate {
-		rpi := DefaultRetentionPolicyInfo()
+		rpi := meta.DefaultRetentionPolicyInfo()
 		if err := data.CreateRetentionPolicy(name, rpi, true); err != nil {
 			return nil, err
 		}
@@ -300,7 +296,7 @@ func (c *Client) CreateDatabase(name string) (*DatabaseInfo, error) {
 // retention policy, and that retention policy is already the default for the
 // database.
 //
-func (c *Client) CreateDatabaseWithRetentionPolicy(name string, spec *RetentionPolicySpec) (*DatabaseInfo, error) {
+func (c *Client) CreateDatabaseWithRetentionPolicy(name string, spec *meta.RetentionPolicySpec) (*meta.DatabaseInfo, error) {
 	if spec == nil {
 		return nil, errors.New("CreateDatabaseWithRetentionPolicy called with nil spec")
 	}
@@ -310,8 +306,8 @@ func (c *Client) CreateDatabaseWithRetentionPolicy(name string, spec *RetentionP
 
 	data := c.cacheData.Clone()
 
-	if spec.Duration != nil && *spec.Duration < MinRetentionPolicyDuration && *spec.Duration != 0 {
-		return nil, ErrRetentionPolicyDurationTooLow
+	if spec.Duration != nil && *spec.Duration < meta.MinRetentionPolicyDuration && *spec.Duration != 0 {
+		return nil, meta.ErrRetentionPolicyDurationTooLow
 	}
 
 	db := data.Database(name)
@@ -374,14 +370,14 @@ func (c *Client) DropDatabase(name string) error {
 }
 
 // CreateRetentionPolicy creates a retention policy on the specified database.
-func (c *Client) CreateRetentionPolicy(database string, spec *RetentionPolicySpec, makeDefault bool) (*RetentionPolicyInfo, error) {
+func (c *Client) CreateRetentionPolicy(database string, spec *meta.RetentionPolicySpec, makeDefault bool) (*meta.RetentionPolicyInfo, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	data := c.cacheData.Clone()
 
-	if spec.Duration != nil && *spec.Duration < MinRetentionPolicyDuration && *spec.Duration != 0 {
-		return nil, ErrRetentionPolicyDurationTooLow
+	if spec.Duration != nil && *spec.Duration < meta.MinRetentionPolicyDuration && *spec.Duration != 0 {
+		return nil, meta.ErrRetentionPolicyDurationTooLow
 	}
 
 	rp := spec.NewRetentionPolicyInfo()
@@ -397,7 +393,7 @@ func (c *Client) CreateRetentionPolicy(database string, spec *RetentionPolicySpe
 }
 
 // RetentionPolicy returns the requested retention policy info.
-func (c *Client) RetentionPolicy(database, name string) (rpi *RetentionPolicyInfo, err error) {
+func (c *Client) RetentionPolicy(database, name string) (rpi *meta.RetentionPolicyInfo, err error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
@@ -428,7 +424,7 @@ func (c *Client) DropRetentionPolicy(database, name string) error {
 }
 
 // UpdateRetentionPolicy updates a retention policy.
-func (c *Client) UpdateRetentionPolicy(database, name string, rpu *RetentionPolicyUpdate, makeDefault bool) error {
+func (c *Client) UpdateRetentionPolicy(database, name string, rpu *meta.RetentionPolicyUpdate, makeDefault bool) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -446,23 +442,26 @@ func (c *Client) UpdateRetentionPolicy(database, name string, rpu *RetentionPoli
 }
 
 // Users returns a slice of UserInfo representing the currently known users.
-func (c *Client) Users() []UserInfo {
+func (c *Client) Users() []meta.UserInfo {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
 	users := c.cacheData.Users
 
 	if users == nil {
-		return []UserInfo{}
+		return []meta.UserInfo{}
 	}
 	return users
 }
 
 // User returns the user with the given name, or ErrUserNotFound.
-func (c *Client) User(name string) (User, error) {
+func (c *Client) User(name string) (meta.User, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
+    return c.user(name)
+}
 
+func (c *Client) user(name string) (meta.User, error) {
 	for _, u := range c.cacheData.Users {
 		if u.Name == name {
 			return &u, nil
@@ -495,15 +494,15 @@ func (c *Client) saltedHash(password string) (salt, hash []byte, err error) {
 }
 
 // CreateUser adds a user with the given name and password and admin status.
-func (c *Client) CreateUser(name, password string, admin bool) (User, error) {
+func (c *Client) CreateUser(name, password string, admin bool) (meta.User, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	data := c.cacheData.Clone()
 
 	// See if the user already exists.
-	if u := data.user(name); u != nil {
-		if err := bcrypt.CompareHashAndPassword([]byte(u.Hash), []byte(password)); err != nil || u.Admin != admin {
+	if u, err := c.user(name); err != nil && u != nil {
+		if err := bcrypt.CompareHashAndPassword([]byte(u.(*meta.UserInfo).Hash), []byte(password)); err != nil || u.(*meta.UserInfo).Admin != admin {
 			return nil, ErrUserExists
 		}
 		return u, nil
@@ -519,13 +518,11 @@ func (c *Client) CreateUser(name, password string, admin bool) (User, error) {
 		return nil, err
 	}
 
-	u := data.user(name)
-
 	if err := c.commit(data); err != nil {
 		return nil, err
 	}
 
-	return u, nil
+	return c.user(name)
 }
 
 // UpdateUser updates the password of an existing user.
@@ -636,11 +633,14 @@ func (c *Client) AdminUserExists() bool {
 }
 
 // Authenticate returns a UserInfo if the username and password match an existing entry.
-func (c *Client) Authenticate(username, password string) (User, error) {
+func (c *Client) Authenticate(username, password string) (meta.User, error) {
 	// Find user.
 	c.mu.RLock()
-	userInfo := c.cacheData.user(username)
+	userInfo, err := c.user(username)
 	c.mu.RUnlock()
+    if err != nil {
+        return nil, err
+    }
 	if userInfo == nil {
 		return nil, ErrUserNotFound
 	}
@@ -659,7 +659,7 @@ func (c *Client) Authenticate(username, password string) (User, error) {
 	}
 
 	// Compare password with user hash.
-	if err := bcrypt.CompareHashAndPassword([]byte(userInfo.Hash), []byte(password)); err != nil {
+	if err := bcrypt.CompareHashAndPassword([]byte(userInfo.(*meta.UserInfo).Hash), []byte(password)); err != nil {
 		return nil, ErrAuthenticate
 	}
 
@@ -669,7 +669,7 @@ func (c *Client) Authenticate(username, password string) (User, error) {
 		return nil, err
 	}
 	c.mu.Lock()
-	c.authCache[username] = authUser{salt: salt, hash: hashed, bhash: userInfo.Hash}
+	c.authCache[username] = authUser{salt: salt, hash: hashed, bhash: userInfo.(*meta.UserInfo).Hash}
 	c.mu.Unlock()
 	return userInfo, nil
 }
@@ -703,7 +703,7 @@ func (c *Client) ShardIDs() []uint64 {
 
 // ShardGroupsByTimeRange returns a list of all shard groups on a database and policy that may contain data
 // for the specified time range. Shard groups are sorted by start time.
-func (c *Client) ShardGroupsByTimeRange(database, policy string, min, max time.Time) (a []ShardGroupInfo, err error) {
+func (c *Client) ShardGroupsByTimeRange(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
@@ -714,7 +714,7 @@ func (c *Client) ShardGroupsByTimeRange(database, policy string, min, max time.T
 	} else if rpi == nil {
 		return nil, influxdb.ErrRetentionPolicyNotFound(policy)
 	}
-	groups := make([]ShardGroupInfo, 0, len(rpi.ShardGroups))
+	groups := make([]meta.ShardGroupInfo, 0, len(rpi.ShardGroups))
 	for _, g := range rpi.ShardGroups {
 		if g.Deleted() || !g.Overlaps(min, max) {
 			continue
@@ -725,8 +725,8 @@ func (c *Client) ShardGroupsByTimeRange(database, policy string, min, max time.T
 }
 
 // ShardsByTimeRange returns a slice of shards that may contain data in the time range.
-func (c *Client) ShardsByTimeRange(sources influxql.Sources, tmin, tmax time.Time) (a []ShardInfo, err error) {
-	m := make(map[*ShardInfo]struct{})
+func (c *Client) ShardsByTimeRange(sources influxql.Sources, tmin, tmax time.Time) (a []meta.ShardInfo, err error) {
+	m := make(map[*meta.ShardInfo]struct{})
 	for _, mm := range sources.Measurements() {
 		groups, err := c.ShardGroupsByTimeRange(mm.Database, mm.RetentionPolicy, tmin, tmax)
 		if err != nil {
@@ -739,7 +739,7 @@ func (c *Client) ShardsByTimeRange(sources influxql.Sources, tmin, tmax time.Tim
 		}
 	}
 
-	a = make([]ShardInfo, 0, len(m))
+	a = make([]meta.ShardInfo, 0, len(m))
 	for sh := range m {
 		a = append(a, *sh)
 	}
@@ -776,7 +776,7 @@ func (c *Client) PruneShardGroups() error {
 	data := c.cacheData.Clone()
 	for i, d := range data.Databases {
 		for j, rp := range d.RetentionPolicies {
-			var remainingShardGroups []ShardGroupInfo
+			var remainingShardGroups []meta.ShardGroupInfo
 			for _, sgi := range rp.ShardGroups {
 				if sgi.DeletedAt.IsZero() || !expiration.After(sgi.DeletedAt) {
 					remainingShardGroups = append(remainingShardGroups, sgi)
@@ -793,7 +793,7 @@ func (c *Client) PruneShardGroups() error {
 	return nil
 }
 
-func (c *Client) ShardGroupByTimestamp(database, policy string, timestamp time.Time) *ShardGroupInfo {
+func (c *Client) ShardGroupByTimestamp(database, policy string, timestamp time.Time) *meta.ShardGroupInfo {
 	c.mu.RLock()
 	if sg, _ := c.cacheData.ShardGroupByTimestamp(database, policy, timestamp); sg != nil {
 		c.mu.RUnlock()
@@ -804,7 +804,7 @@ func (c *Client) ShardGroupByTimestamp(database, policy string, timestamp time.T
 }
 
 // CreateShardGroup creates a shard group on a database and policy for a given timestamp.
-func (c *Client) CreateShardGroup(database, policy string, timestamp time.Time) (*ShardGroupInfo, error) {
+func (c *Client) CreateShardGroup(database, policy string, timestamp time.Time) (*meta.ShardGroupInfo, error) {
 	// Check under a read-lock
 	c.mu.RLock()
 	if sg, _ := c.cacheData.ShardGroupByTimestamp(database, policy, timestamp); sg != nil {
@@ -834,7 +834,7 @@ func (c *Client) CreateShardGroup(database, policy string, timestamp time.Time) 
 	return sgi, nil
 }
 
-func createShardGroup(data *Data, database, policy string, timestamp time.Time) (*ShardGroupInfo, error) {
+func createShardGroup(data *Data, database, policy string, timestamp time.Time) (*meta.ShardGroupInfo, error) {
 	// It is the responsibility of the caller to check if it exists before calling this method.
 	if sg, _ := data.ShardGroupByTimestamp(database, policy, timestamp); sg != nil {
 		return nil, ErrShardGroupExists
@@ -930,7 +930,7 @@ func (c *Client) PrecreateShardGroups(from, to time.Time) error {
 }
 
 // ShardOwner returns the owning shard group info for a specific shard.
-func (c *Client) ShardOwner(shardID uint64) (database, policy string, sgi *ShardGroupInfo) {
+func (c *Client) ShardOwner(shardID uint64) (database, policy string, sgi *meta.ShardGroupInfo) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
