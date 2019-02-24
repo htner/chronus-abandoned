@@ -19,19 +19,18 @@ import (
 	"github.com/influxdata/influxdb/services/continuous_querier"
 	"github.com/influxdata/influxdb/services/graphite"
 	"github.com/influxdata/influxdb/services/httpd"
+	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/services/opentsdb"
 	"github.com/influxdata/influxdb/services/precreator"
 	"github.com/influxdata/influxdb/services/retention"
 	"github.com/influxdata/influxdb/services/subscriber"
 	"github.com/influxdata/influxdb/services/udp"
-	"github.com/influxdata/influxdb/services/meta"
 	itoml "github.com/influxdata/influxdb/toml"
 	"github.com/influxdata/influxdb/tsdb"
 	"golang.org/x/text/encoding/unicode"
 	"golang.org/x/text/transform"
 
 	"github.com/angopher/chronus/coordinator"
-	"github.com/angopher/chronus/raftmeta"
 	"github.com/angopher/chronus/services/hh"
 )
 
@@ -44,7 +43,6 @@ const (
 type Config struct {
 	Meta        *meta.Config       `toml:"meta"`
 	Data        tsdb.Config        `toml:"data"`
-	RaftMeta    raftmeta.Config    `toml:"raftmeta"`
 	Coordinator coordinator.Config `toml:"coordinator"`
 	Retention   retention.Config   `toml:"retention"`
 	Precreator  precreator.Config  `toml:"shard-precreation"`
@@ -75,7 +73,6 @@ type Config struct {
 func NewConfig() *Config {
 	c := &Config{}
 	c.Meta = meta.NewConfig()
-	c.RaftMeta = raftmeta.NewConfig()
 	c.Data = tsdb.NewConfig()
 	c.Coordinator = coordinator.NewConfig()
 	c.Precreator = precreator.NewConfig()

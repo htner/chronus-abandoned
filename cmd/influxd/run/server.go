@@ -41,8 +41,8 @@ import (
 	_ "github.com/influxdata/influxdb/tsdb/index"
 
 	"github.com/angopher/chronus/coordinator"
-	imeta "github.com/angopher/chronus/services/meta"
 	"github.com/angopher/chronus/services/hh"
+	imeta "github.com/angopher/chronus/services/meta"
 )
 
 var startTime time.Time
@@ -73,7 +73,7 @@ type Server struct {
 
 	Logger *zap.Logger
 
-    Node *influxdb.Node
+	Node              *influxdb.Node
 	MetaClient        *imeta.Client
 	ClusterMetaClient *coordinator.ClusterMetaClient
 
@@ -221,7 +221,7 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 			return nil, err
 		}
 	}
-    s.Node.ID = n.ID
+	s.Node.ID = n.ID
 	if err := s.Node.Save(); err != nil {
 		return nil, err
 	}
@@ -520,7 +520,7 @@ func (s *Server) Open() error {
 		return fmt.Errorf("open points writer: %s", err)
 	}
 
-    //TODO:
+	//TODO:
 	//s.PointsWriter.AddWriteSubscriber(s.Subscriber.Points())
 
 	for _, service := range s.Services {
