@@ -222,6 +222,7 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 		}
 	}
 	s.Node.ID = n.ID
+	s.ClusterMetaClient.NodeID = n.ID
 	if err := s.Node.Save(); err != nil {
 		return nil, err
 	}

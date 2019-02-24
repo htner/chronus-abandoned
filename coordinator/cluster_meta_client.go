@@ -11,6 +11,7 @@ import (
 )
 
 type ClusterMetaClient struct {
+	NodeID         uint64
 	cache          *imeta.Client
 	metaCli        *MetaClientImpl
 	pingIntervalMs int64
@@ -19,9 +20,9 @@ type ClusterMetaClient struct {
 
 func NewMetaClient(mc *meta.Config, cc Config, nodeID uint64) *ClusterMetaClient {
 	return &ClusterMetaClient{
+		NodeID: nodeID,
 		metaCli: &MetaClientImpl{
-			Addrs:  cc.MetaServices,
-			NodeID: nodeID,
+			Addrs: cc.MetaServices,
 		},
 		pingIntervalMs: cc.PingMetaServiceIntervalMs,
 		cache:          imeta.NewClient(mc),
@@ -37,13 +38,12 @@ func (me *ClusterMetaClient) Open() error {
 }
 
 func (me *ClusterMetaClient) MarshalBinary() ([]byte, error) {
-    //TODO
-    return nil, nil
+	return me.cache.MarshalBinary()
 }
 
 func (me *ClusterMetaClient) AcquireLease(name string) (*meta.Lease, error) {
 	//TODO: pass node id
-	return me.metaCli.AcquireLease(name)
+	return me.metaCli.AcquireLease(me.NodeID, name)
 }
 
 func (me *ClusterMetaClient) WaitForDataChanged() chan struct{} {

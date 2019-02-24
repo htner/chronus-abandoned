@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"io/ioutil"
 	"math/rand"
+	"net"
 	"net/http"
 	"time"
-	"net"
 
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxql"
@@ -19,8 +19,7 @@ import (
 )
 
 type MetaClientImpl struct {
-	Addrs  []string
-	NodeID uint64
+	Addrs []string
 }
 
 //	return &MetaClientImpl{MetaServiceHost: "127.0.0.1:1234"}
@@ -29,8 +28,8 @@ func (me *MetaClientImpl) Url(path string) string {
 	return fmt.Sprintf("http://%s%s", me.Addrs[rand.Intn(len(me.Addrs))], path)
 }
 
-func (me *MetaClientImpl) AcquireLease(name string) (*meta.Lease, error) {
-	req := raftmeta.AcquireLeaseReq{Name: name, NodeId: me.NodeID}
+func (me *MetaClientImpl) AcquireLease(NodeID uint64, name string) (*meta.Lease, error) {
+	req := raftmeta.AcquireLeaseReq{Name: name, NodeId: NodeID}
 	var resp raftmeta.AcquireLeaseResp
 	err := RequestAndParseResponse(me.Url(raftmeta.ACQUIRE_LEASE_PATH), &req, &resp)
 	if err != nil {
@@ -46,13 +45,8 @@ func (me *MetaClientImpl) AcquireLease(name string) (*meta.Lease, error) {
 	return l, nil
 }
 
-//TODO:
-func (me *MetaClientImpl) WaitForDataChanged() chan struct{} {
-	return make(chan struct{})
-}
-
-//TODO:
 func (me *MetaClientImpl) ClusterID() uint64 {
+	//TODO:
 	return 0
 }
 
