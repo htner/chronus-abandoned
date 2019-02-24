@@ -1,26 +1,21 @@
 package meta
 
 import (
+	"encoding/json"
+	"fmt"
 	"sort"
 	"time"
 
-	"fmt"
-
-	"github.com/gogo/protobuf/proto"
 	"github.com/influxdata/influxdb/services/meta"
-
-    internal "github.com/angopher/chronus/services/meta/internal"
 )
-
-//go:generate protoc --gogo_out=. internal/meta.proto
 
 // Data represents the top level collection of all metadata.
 type Data struct {
-    meta.Data
+	meta.Data
 	MetaNodes []meta.NodeInfo
 	DataNodes []meta.NodeInfo
 
-	MaxNodeID       uint64
+	MaxNodeID uint64
 }
 
 // DataNode returns a node by id.
@@ -317,108 +312,48 @@ func (data *Data) Clone() *Data {
 	return &other
 }
 
-func MarshalNodeInfo(ni meta.NodeInfo) *internal.NodeInfo {
-    pb := &internal.NodeInfo{}
-    pb.ID = proto.Uint64(ni.ID)
-    pb.Host = proto.String(ni.Host)
-    pb.TCPHost = proto.String(ni.TCPHost)
-    return pb
+type DataJson struct {
+	Data      []byte
+	MetaNodes []meta.NodeInfo
+	DataNodes []meta.NodeInfo
+	MaxNodeID uint64
+}
+
+func (data *Data) marshal() ([]byte, error) {
+	var js DataJson
+	js.MetaNodes = data.MetaNodes
+	js.DataNodes = data.DataNodes
+	js.MaxNodeID = data.MaxNodeID
+	var err error
+	js.Data, err = data.Data.MarshalBinary()
+	if err != nil {
+		return nil, err
+	}
+
+	return json.Marshal(&js)
 }
 
 // unmarshal deserializes from a protobuf representation.
-func UnmarshalNodeInfo(ni *meta.NodeInfo, pb *internal.NodeInfo) {
-    ni.ID = pb.GetID()
-    ni.Host = pb.GetHost()
-    ni.TCPHost = pb.GetTCPHost()
-}
-
-func (data *Data) marshal() *internal.Data {
-    pb := &internal.Data{
-        Term:      proto.Uint64(data.Term),
-        Index:     proto.Uint64(data.Index),
-        ClusterID: proto.Uint64(data.ClusterID),
-
-		MaxShardGroupID: proto.Uint64(data.MaxShardGroupID),
-		MaxShardID:      proto.Uint64(data.MaxShardID),
-
-		// Need this for reverse compatibility
-		MaxNodeID: proto.Uint64(data.MaxNodeID),
+func (data *Data) unmarshal(buf []byte) error {
+	var js DataJson
+	err := json.Unmarshal(buf, &js)
+	if err != nil {
+		return err
 	}
 
-	pb.DataNodes = make([]*internal.NodeInfo, len(data.DataNodes))
-	for i := range data.DataNodes {
-		pb.DataNodes[i] = MarshalNodeInfo(data.DataNodes[i])
-	}
-
-	pb.MetaNodes = make([]*internal.NodeInfo, len(data.MetaNodes))
-	for i := range data.MetaNodes {
-		pb.MetaNodes[i] = MarshalNodeInfo(data.MetaNodes[i])
-	}
-
-    //TODO:
-//	pb.Databases = make([]*internal.DatabaseInfo, len(data.Databases))
-//	for i := range data.Databases {
-//		pb.Databases[i] = data.Databases[i].marshal()
-//	}
-//
-//	pb.Users = make([]*internal.UserInfo, len(data.Users))
-//	for i := range data.Users {
-//		pb.Users[i] = data.Users[i].marshal()
-//	}
-
-	return pb
-}
-
-// unmarshal deserializes from a protobuf representation.
-func (data *Data) unmarshal(pb *internal.Data) {
-	data.Term = pb.GetTerm()
-	data.Index = pb.GetIndex()
-	data.ClusterID = pb.GetClusterID()
-
-	data.MaxShardGroupID = pb.GetMaxShardGroupID()
-	data.MaxShardID = pb.GetMaxShardID()
-	data.MaxNodeID = pb.GetMaxNodeID()
-
-	data.DataNodes = make([]meta.NodeInfo, len(pb.GetDataNodes()))
-	for i, x := range pb.GetDataNodes() {
-        UnmarshalNodeInfo(&data.DataNodes[i], x)
-	}
-
-	data.MetaNodes = make([]meta.NodeInfo, len(pb.GetMetaNodes()))
-	for i, x := range pb.GetMetaNodes() {
-        UnmarshalNodeInfo(&data.MetaNodes[i], x)
-	}
-
-    //TODO
-//	data.Databases = make([]meta.DatabaseInfo, len(pb.GetDatabases()))
-//	for i, x := range pb.GetDatabases() {
-//		data.Databases[i].unmarshal(x)
-//	}
-//
-//	data.Users = make([]meta.UserInfo, len(pb.GetUsers()))
-//	for i, x := range pb.GetUsers() {
-//		data.Users[i].unmarshal(x)
-//	}
-//
-//	// Exhaustively determine if there is an admin user. The marshalled cache
-//	// value may not be correct.
-//	data.adminUserExists = data.hasAdminUser()
+	data.MetaNodes = js.MetaNodes
+	data.DataNodes = js.DataNodes
+	data.MaxNodeID = js.MaxNodeID
+	return data.Data.UnmarshalBinary(js.Data)
 }
 
 // MarshalBinary encodes the metadata to a binary format.
 func (data *Data) MarshalBinary() ([]byte, error) {
-    //TODO
-	return proto.Marshal(data.marshal())
+	return data.marshal()
 }
 
 // UnmarshalBinary decodes the object from a binary format.
 func (data *Data) UnmarshalBinary(buf []byte) error {
-    //TODO
-	var pb internal.Data
-	if err := proto.Unmarshal(buf, &pb); err != nil {
-		return err
-	}
-	data.unmarshal(&pb)
+	data.unmarshal(buf)
 	return nil
 }
-

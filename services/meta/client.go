@@ -4,10 +4,10 @@ package meta
 
 import (
 	"bytes"
-	"fmt"
 	crand "crypto/rand"
 	"crypto/sha256"
 	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -20,8 +20,8 @@ import (
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/pkg/file"
-	"github.com/influxdata/influxql"
 	"github.com/influxdata/influxdb/services/meta"
+	"github.com/influxdata/influxql"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -55,8 +55,6 @@ type Client struct {
 	retentionAutoCreate bool
 }
 
-//TODO:小心cacheData竞争
-
 type authUser struct {
 	bhash string
 	salt  []byte
@@ -67,17 +65,16 @@ type authUser struct {
 func NewClient(config *meta.Config) *Client {
 	return &Client{
 		cacheData: &Data{
-        //TODO:
-           // meta.Data {
-           //     ClusterID: 0,
-           //     Index:     1,
-           // },
-        },
-        closing:             make(chan struct{}),
-        changed:             make(chan struct{}),
-        logger:              zap.NewNop(),
-        authCache:           make(map[string]authUser),
-        path:                config.Dir,
+			Data: meta.Data{
+				ClusterID: 0,
+				Index:     1,
+			},
+		},
+		closing:             make(chan struct{}),
+		changed:             make(chan struct{}),
+		logger:              zap.NewNop(),
+		authCache:           make(map[string]authUser),
+		path:                config.Dir,
 		retentionAutoCreate: config.RetentionAutoCreate,
 	}
 }
@@ -458,7 +455,7 @@ func (c *Client) Users() []meta.UserInfo {
 func (c *Client) User(name string) (meta.User, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-    return c.user(name)
+	return c.user(name)
 }
 
 func (c *Client) user(name string) (meta.User, error) {
@@ -638,9 +635,9 @@ func (c *Client) Authenticate(username, password string) (meta.User, error) {
 	c.mu.RLock()
 	userInfo, err := c.user(username)
 	c.mu.RUnlock()
-    if err != nil {
-        return nil, err
-    }
+	if err != nil {
+		return nil, err
+	}
 	if userInfo == nil {
 		return nil, ErrUserNotFound
 	}
