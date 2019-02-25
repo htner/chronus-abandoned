@@ -1,6 +1,7 @@
 package raftmeta
 
 import (
+	imeta "github.com/angopher/chronus/services/meta"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxql"
 	"time"
@@ -8,8 +9,8 @@ import (
 
 type MetaClient interface {
 	MarshalBinary() ([]byte, error)
-	ReplaceData(data *meta.Data) error
-	Data() meta.Data
+	ReplaceData(data *imeta.Data) error
+	Data() imeta.Data
 	CreateContinuousQuery(database, name, query string) error
 	CreateDatabase(name string) (*meta.DatabaseInfo, error)
 	CreateDatabaseWithRetentionPolicy(name string, spec *meta.RetentionPolicySpec) (*meta.DatabaseInfo, error)

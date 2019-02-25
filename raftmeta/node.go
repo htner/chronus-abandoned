@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/angopher/chronus/raftmeta/internal"
+	imeta "github.com/angopher/chronus/services/meta"
 	"github.com/angopher/chronus/x"
 	"github.com/coreos/etcd/pkg/wait"
 	"github.com/coreos/etcd/raft"
@@ -248,7 +249,7 @@ func (s *RaftNode) restoreFromSnapshot() {
 
 	s.SetPeers(sndata.PeersAddr)
 
-	metaData := &meta.Data{}
+	metaData := &imeta.Data{}
 	err = metaData.UnmarshalBinary(sndata.Data)
 	x.Checkf(err, "meta data UnmarshalBinary fail")
 

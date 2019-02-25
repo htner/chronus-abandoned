@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/angopher/chronus/raftmeta/internal"
+	imeta "github.com/angopher/chronus/services/meta"
 	"github.com/angopher/chronus/x"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxql"
@@ -20,13 +21,13 @@ type CommonResp struct {
 
 type MetaService struct {
 	node          *RaftNode
-	cli           *meta.Client
+	cli           *imeta.Client
 	Linearizabler interface {
 		ReadNotify(ctx context.Context) error
 	}
 }
 
-func NewMetaService(cli *meta.Client, node *RaftNode, l *Linearizabler) *MetaService {
+func NewMetaService(cli *imeta.Client, node *RaftNode, l *Linearizabler) *MetaService {
 	return &MetaService{
 		cli:           cli,
 		node:          node,
