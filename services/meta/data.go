@@ -6,6 +6,8 @@ import (
 	"sort"
 	"time"
 
+	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
 )
 
@@ -357,3 +359,76 @@ func (data *Data) UnmarshalBinary(buf []byte) error {
 	data.unmarshal(buf)
 	return nil
 }
+
+// CreateShardGroup creates a shard group on a database and policy for a given timestamp.
+func (data *Data) CreateShardGroup(database, policy string, timestamp time.Time) error {
+	// Ensure there are nodes in the metadata.
+	if len(data.DataNodes) == 0 {
+		return nil
+	}
+
+	// Find retention policy.
+	rpi, err := data.RetentionPolicy(database, policy)
+	if err != nil {
+		return err
+	} else if rpi == nil {
+		return influxdb.ErrRetentionPolicyNotFound(policy)
+	}
+
+	// Verify that shard group doesn't already exist for this timestamp.
+	if rpi.ShardGroupByTimestamp(timestamp) != nil {
+		return nil
+	}
+
+	// Require at least one replica but no more replicas than nodes.
+	replicaN := rpi.ReplicaN
+	if replicaN == 0 {
+		replicaN = 1
+	} else if replicaN > len(data.DataNodes) {
+		replicaN = len(data.DataNodes)
+	}
+
+	// Determine shard count by node count divided by replication factor.
+	// This will ensure nodes will get distributed across nodes evenly and
+	// replicated the correct number of times.
+	shardN := len(data.DataNodes) / replicaN
+
+	// Create the shard group.
+	data.MaxShardGroupID++
+	sgi := meta.ShardGroupInfo{}
+	sgi.ID = data.MaxShardGroupID
+	sgi.StartTime = timestamp.Truncate(rpi.ShardGroupDuration).UTC()
+	sgi.EndTime = sgi.StartTime.Add(rpi.ShardGroupDuration).UTC()
+	if sgi.EndTime.After(time.Unix(0, models.MaxNanoTime)) {
+		// Shard group range is [start, end) so add one to the max time.
+		sgi.EndTime = time.Unix(0, models.MaxNanoTime+1)
+	}
+
+	// Create shards on the group.
+	sgi.Shards = make([]meta.ShardInfo, shardN)
+	for i := range sgi.Shards {
+		data.MaxShardID++
+		sgi.Shards[i] = meta.ShardInfo{ID: data.MaxShardID}
+	}
+
+	// Assign data nodes to shards via round robin.
+	// Start from a repeatably "random" place in the node list.
+	nodeIndex := int(data.Index % uint64(len(data.DataNodes)))
+	for i := range sgi.Shards {
+		si := &sgi.Shards[i]
+		for j := 0; j < replicaN; j++ {
+			nodeID := data.DataNodes[nodeIndex%len(data.DataNodes)].ID
+			si.Owners = append(si.Owners, meta.ShardOwner{NodeID: nodeID})
+			nodeIndex++
+		}
+	}
+
+	// Retention policy has a new shard group, so update the policy. Shard
+	// Groups must be stored in sorted order, as other parts of the system
+	// assume this to be the case.
+	rpi.ShardGroups = append(rpi.ShardGroups, sgi)
+	sort.Sort(meta.ShardGroupInfos(rpi.ShardGroups))
+
+	return nil
+}
+
