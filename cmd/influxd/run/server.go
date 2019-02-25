@@ -159,6 +159,12 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 		if !os.IsNotExist(err) {
 			return nil, err
 		}
+		node = influxdb.NewNode(c.Meta.Dir)
+	}
+
+	var nodeID uint64 = 0
+	if node != nil {
+		nodeID = node.ID
 	}
 
 	if err := raftDBExists(c.Meta.Dir); err != nil {
@@ -176,11 +182,12 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 
 		BindAddress: bind,
 
+		Node: node,
+
 		Logger: logger.New(os.Stderr),
 
 		MetaClient: imeta.NewClient(c.Meta),
-		//when node.ID is zero?
-		ClusterMetaClient: coordinator.NewMetaClient(c.Meta, c.Coordinator, node.ID),
+		ClusterMetaClient: coordinator.NewMetaClient(c.Meta, c.Coordinator, nodeID),
 
 		reportingDisabled: c.ReportingDisabled,
 
@@ -213,10 +220,10 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 	}
 
 	// If we've already created a data node for our id, we're done
-	n, err := s.ClusterMetaClient.DataNode(node.ID)
+	n, err := s.ClusterMetaClient.DataNode(nodeID)
 	if err != nil {
 		n, err = s.ClusterMetaClient.CreateDataNode(s.httpAPIAddr, s.tcpAddr)
-		for err != nil {
+		if err != nil {
 			log.Printf("Unable to create data node. err: %s", err.Error())
 			return nil, err
 		}
