@@ -186,7 +186,7 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 
 		Logger: logger.New(os.Stderr),
 
-		MetaClient: imeta.NewClient(c.Meta),
+		MetaClient:        imeta.NewClient(c.Meta),
 		ClusterMetaClient: coordinator.NewMetaClient(c.Meta, c.Coordinator, nodeID),
 
 		reportingDisabled: c.ReportingDisabled,
@@ -487,6 +487,7 @@ func (s *Server) Open() error {
 
 	s.Subscriber.MetaClient = s.ClusterMetaClient
 	s.PointsWriter.MetaClient = s.ClusterMetaClient
+	s.ShardWriter.MetaClient = s.ClusterMetaClient
 	s.Monitor.MetaClient = s.ClusterMetaClient
 
 	s.ClusterService.Listener = mux.Listen(coordinator.MuxHeader)

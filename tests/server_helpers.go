@@ -20,8 +20,8 @@ import (
 	"github.com/angopher/chronus/cmd/influxd/run"
 	"github.com/angopher/chronus/x"
 	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/services/httpd"
+	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/toml"
 )
 

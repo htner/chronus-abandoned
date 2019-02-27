@@ -87,7 +87,7 @@ func (me *ClusterManager) Open() error {
 	metaAddrs := []string{}
 	for i := 0; i < me.MetaServerNumber; i++ {
 		id := uint64(i + 1)
-		mc := me.Config.RaftMeta
+		mc := raftmeta.NewConfig()
 		host, port := SplitAddr(mc.MyAddr)
 		mc.MyAddr = Addr(host, port+i)
 		mc.Peers = peers
