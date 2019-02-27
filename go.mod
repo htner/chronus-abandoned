@@ -13,6 +13,8 @@ require (
 	github.com/dgryski/go-farm v0.0.0-20190104051053-3adb47b1fb0f // indirect
 	github.com/gogo/protobuf v1.2.1
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
+	github.com/golang/snappy v0.0.0-20180518054509-2e65f85255db
+	github.com/google/go-cmp v0.2.0
 	github.com/influxdata/influxdb v1.7.4
 	github.com/influxdata/influxql v0.0.0-20180925231337-1cbfca8e56b6
 	github.com/influxdata/platform v0.0.0-20190117200541-d500d3cf5589
