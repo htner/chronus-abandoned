@@ -21,7 +21,7 @@ import (
 type WritePointsRequest struct {
 	Database         string
 	RetentionPolicy  string
-	ConsistencyLevel models.ConsistencyLevel
+	//ConsistencyLevel models.ConsistencyLevel
 	Points           []models.Point
 }
 
