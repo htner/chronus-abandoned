@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"math/rand"
 	"net"
 	"sort"
@@ -20,26 +19,6 @@ import (
 	"github.com/influxdata/influxql"
 	"go.uber.org/zap"
 )
-
-type ClusterExecutor interface {
-	WithLogger(log *zap.Logger)
-	TagKeys(auth query.Authorizer, Shards []meta.ShardInfo, cond influxql.Expr) ([]tsdb.TagKeys, error)
-	TagValues(auth query.Authorizer, shards []meta.ShardInfo, cond influxql.Expr) ([]tsdb.TagValues, error)
-	MeasurementNames(auth query.Authorizer, database string, cond influxql.Expr) ([][]byte, error)
-	SeriesCardinality(database string) (int64, error)
-	DeleteSeries(database string, sources []influxql.Source, condition influxql.Expr) error
-	DeleteDatabase(database string) error
-	DeleteMeasurement(database, name string) error
-	ExecuteStatement(stmt influxql.Statement, database string) error
-	FieldDimensions(m *influxql.Measurement, shards []meta.ShardInfo) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error)
-	IteratorCost(m *influxql.Measurement, opt query.IteratorOptions, shards []meta.ShardInfo) (query.IteratorCost, error)
-	MapType(m *influxql.Measurement, field string, shards []meta.ShardInfo) influxql.DataType
-	CreateIterator(ctx context.Context, m *influxql.Measurement, opt query.IteratorOptions, shards []meta.ShardInfo) (query.Iterator, error)
-	TaskManagerStatement(tm *query.TaskManager, stmt influxql.Statement, ctx *query.ExecutionContext) error
-
-	RestoreShard(id uint64, r io.Reader) error
-	BackupShard(id uint64, since time.Time, w io.Writer) error
-}
 
 type ClusterExecutorImpl struct {
 	TSDBStore
