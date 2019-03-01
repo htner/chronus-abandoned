@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb"
+	influxdb_coordinator "github.com/influxdata/influxdb/coordinator"
 	"github.com/influxdata/influxdb/flux/control"
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
@@ -265,12 +266,10 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 
 	// Initialize query executor.
 	s.QueryExecutor = query.NewExecutor()
-	s.QueryExecutor.StatementExecutor = &coordinator.StatementExecutor{
-		Node:            s.Node,
-		MetaClient:      s.ClusterMetaClient,
-		TaskManager:     s.QueryExecutor.TaskManager,
-		TSDBStore:       s.TSDBStore,
-		ClusterExecutor: clusterExecutor,
+	s.QueryExecutor.StatementExecutor = &influxdb_coordinator.StatementExecutor{
+		MetaClient:  s.ClusterMetaClient,
+		TaskManager: s.QueryExecutor.TaskManager,
+		TSDBStore:   clusterExecutor,
 		ShardMapper: &coordinator.ClusterShardMapper{
 			MetaClient:      s.ClusterMetaClient,
 			Node:            s.Node,

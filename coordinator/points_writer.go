@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb"
+	influxdb_coordinator "github.com/influxdata/influxdb/coordinator"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb"
 	"go.uber.org/zap"
@@ -279,7 +280,7 @@ func (l sgList) Append(sgi meta.ShardGroupInfo) sgList {
 
 // WritePointsInto is a copy of WritePoints that uses a tsdb structure instead of
 // a cluster structure for information. This is to avoid a circular dependency.
-func (w *PointsWriter) WritePointsInto(p *IntoWriteRequest) error {
+func (w *PointsWriter) WritePointsInto(p *influxdb_coordinator.IntoWriteRequest) error {
 	return w.WritePointsPrivileged(p.Database, p.RetentionPolicy, models.ConsistencyLevelOne, p.Points)
 }
 

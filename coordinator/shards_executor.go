@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"math/rand"
 	"net"
 	"sort"
@@ -35,17 +36,20 @@ type ClusterExecutor interface {
 	MapType(m *influxql.Measurement, field string, shards []meta.ShardInfo) influxql.DataType
 	CreateIterator(ctx context.Context, m *influxql.Measurement, opt query.IteratorOptions, shards []meta.ShardInfo) (query.Iterator, error)
 	TaskManagerStatement(tm *query.TaskManager, stmt influxql.Statement, ctx *query.ExecutionContext) error
+
+	RestoreShard(id uint64, r io.Reader) error
+	BackupShard(id uint64, since time.Time, w io.Writer) error
 }
 
 type ClusterExecutorImpl struct {
+	TSDBStore
 	Node               *influxdb.Node
-	TSDBStore          TSDBStore
 	MetaClient         MetaClient
 	RemoteNodeExecutor RemoteNodeExecutor
 	Logger             *zap.Logger
 }
 
-func NewClusterExecutor(n *influxdb.Node, s TSDBStore, m MetaClient, Config Config) ClusterExecutor {
+func NewClusterExecutor(n *influxdb.Node, s TSDBStore, m MetaClient, Config Config) *ClusterExecutorImpl {
 	return &ClusterExecutorImpl{
 		Node:       n,
 		TSDBStore:  s,
@@ -1111,10 +1115,15 @@ func (me *ClusterExecutorImpl) MeasurementNames(auth query.Authorizer, database 
 	return names, nil
 }
 
-func (me *ClusterExecutorImpl) TagValues(auth query.Authorizer, shards []meta.ShardInfo, cond influxql.Expr) ([]tsdb.TagValues, error) {
+func (me *ClusterExecutorImpl) TagValues(auth query.Authorizer, ids []uint64, cond influxql.Expr) ([]tsdb.TagValues, error) {
 	type TagValuesResult struct {
 		values []tsdb.TagValues
 		err    error
+	}
+
+	shards, err := GetShardInfoByIds(me.MetaClient, ids)
+	if err != nil {
+		return nil, err
 	}
 
 	n2s := NewNode2ShardIDs(me.MetaClient, me.Node, shards)
@@ -1467,10 +1476,32 @@ func (me *ClusterExecutorImpl) FieldDimensions(m *influxql.Measurement, shards [
 	return fields, dimensions, nil
 }
 
-func (me *ClusterExecutorImpl) TagKeys(auth query.Authorizer, shards []meta.ShardInfo, cond influxql.Expr) ([]tsdb.TagKeys, error) {
+func GetShardInfoByIds(MetaClient MetaClient, ids []uint64) ([]meta.ShardInfo, error) {
+	var shards []meta.ShardInfo
+	for _, id := range ids {
+		_, _, sgi := MetaClient.ShardOwner(id)
+		if sgi == nil {
+			return nil, fmt.Errorf("not find shard %d", id)
+		}
+		for _, shard := range sgi.Shards {
+			if shard.ID == id {
+				shards = append(shards, shard)
+				break
+			}
+		}
+	}
+	return shards, nil
+}
+
+func (me *ClusterExecutorImpl) TagKeys(auth query.Authorizer, ids []uint64, cond influxql.Expr) ([]tsdb.TagKeys, error) {
 	type TagKeysResult struct {
 		keys []tsdb.TagKeys
 		err  error
+	}
+
+	shards, err := GetShardInfoByIds(me.MetaClient, ids)
+	if err != nil {
+		return nil, err
 	}
 
 	n2s := NewNode2ShardIDs(me.MetaClient, me.Node, shards)
