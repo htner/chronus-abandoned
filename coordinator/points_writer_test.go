@@ -8,11 +8,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/angopher/chronus/coordinator"
 	"github.com/influxdata/influxdb"
+	influxdb_coordinator "github.com/influxdata/influxdb/coordinator"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
-	"github.com/angopher/chronus/coordinator"
 )
 
 // TODO(benbjohnson): Rewrite tests to use cluster_test.MetaClient.
@@ -326,6 +327,12 @@ func TestPointsWriter_WritePoints(t *testing.T) {
 			},
 		}
 
+		shardWriter := &fakeShardWriter{
+			WriteFn: func(shardID, ownerID uint64, points []models.Point) error {
+				return nil
+			},
+		}
+
 		ms.DatabaseFn = func(database string) *meta.DatabaseInfo {
 			return nil
 		}
@@ -340,6 +347,7 @@ func TestPointsWriter_WritePoints(t *testing.T) {
 		c := coordinator.NewPointsWriter()
 		c.MetaClient = ms
 		c.TSDBStore = store
+		c.ShardWriter = shardWriter
 		c.AddWriteSubscriber(sub.Points())
 		c.Node = &influxdb.Node{ID: 1}
 
@@ -429,10 +437,10 @@ func TestPointsWriter_WritePoints_Dropped(t *testing.T) {
 }
 
 type fakePointsWriter struct {
-	WritePointsIntoFn func(*coordinator.IntoWriteRequest) error
+	WritePointsIntoFn func(*influxdb_coordinator.IntoWriteRequest) error
 }
 
-func (f *fakePointsWriter) WritePointsInto(req *coordinator.IntoWriteRequest) error {
+func (f *fakePointsWriter) WritePointsInto(req *influxdb_coordinator.IntoWriteRequest) error {
 	return f.WritePointsIntoFn(req)
 }
 
@@ -450,14 +458,14 @@ func TestBufferedPointsWriter(t *testing.T) {
 	}
 
 	fakeWriter := &fakePointsWriter{
-		WritePointsIntoFn: func(req *coordinator.IntoWriteRequest) error {
+		WritePointsIntoFn: func(req *influxdb_coordinator.IntoWriteRequest) error {
 			writePointsIntoCnt++
 			pointsWritten = append(pointsWritten, req.Points...)
 			return nil
 		},
 	}
 
-	w := coordinator.NewBufferedPointsWriter(fakeWriter, db, rp, capacity)
+	w := influxdb_coordinator.NewBufferedPointsWriter(fakeWriter, db, rp, capacity)
 
 	// Test that capacity and length are correct for new buffered writer.
 	if w.Cap() != capacity {
@@ -474,7 +482,7 @@ func TestBufferedPointsWriter(t *testing.T) {
 	}
 
 	// Test writing zero points.
-	if err := w.WritePointsInto(&coordinator.IntoWriteRequest{
+	if err := w.WritePointsInto(&influxdb_coordinator.IntoWriteRequest{
 		Database:        db,
 		RetentionPolicy: rp,
 		Points:          []models.Point{},
@@ -497,7 +505,7 @@ func TestBufferedPointsWriter(t *testing.T) {
 		req.AddPoint("cpu", float64(i), time.Now().Add(time.Duration(i)*time.Second), nil)
 	}
 
-	r := coordinator.IntoWriteRequest(req)
+	r := influxdb_coordinator.IntoWriteRequest(req)
 	if err := w.WritePointsInto(&r); err != nil {
 		t.Fatal(err)
 	} else if writePointsIntoCnt != 5 {
@@ -524,7 +532,7 @@ func TestBufferedPointsWriter(t *testing.T) {
 
 	// Test writing points one at a time.
 	for i := range r.Points {
-		if err := w.WritePointsInto(&coordinator.IntoWriteRequest{
+		if err := w.WritePointsInto(&influxdb_coordinator.IntoWriteRequest{
 			Database:        db,
 			RetentionPolicy: rp,
 			Points:          r.Points[i : i+1],
@@ -559,6 +567,14 @@ func (f *fakeStore) WriteToShard(shardID uint64, points []models.Point) error {
 
 func (f *fakeStore) CreateShard(database, retentionPolicy string, shardID uint64, enabled bool) error {
 	return f.CreateShardfn(database, retentionPolicy, shardID, enabled)
+}
+
+type fakeShardWriter struct {
+	WriteFn func(shardID, ownerID uint64, points []models.Point) error
+}
+
+func (f *fakeShardWriter) WriteShard(shardID, ownerID uint64, points []models.Point) error {
+	return f.WriteFn(shardID, ownerID, points)
 }
 
 func NewPointsWriterMetaClient() *PointsWriterMetaClient {
