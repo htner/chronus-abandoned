@@ -80,6 +80,7 @@ func (me *RemoteNodeExecutorImpl) CreateIterator(nodeId uint64, ctx context.Cont
 	if err != nil {
 		return nil, err
 	}
+	//no need here defer conn.Close()
 
 	var resp CreateIteratorResponse
 	if err := func() error {
@@ -114,7 +115,9 @@ func (me *RemoteNodeExecutorImpl) CreateIterator(nodeId uint64, ctx context.Cont
 	if resp.DataType == influxql.Unknown {
 		return nil, nil
 	}
+
 	stats := query.IteratorStats{SeriesN: resp.SeriesN}
+	//conn.Close will be invoked when iterator.Close
 	itr := query.NewReaderIterator(ctx, conn, resp.DataType, stats)
 	return itr, nil
 }
