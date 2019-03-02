@@ -20,7 +20,7 @@ import (
 	"go.uber.org/zap"
 )
 
-type ClusterExecutorImpl struct {
+type ClusterExecutor struct {
 	TSDBStore
 	Node               *influxdb.Node
 	MetaClient         MetaClient
@@ -28,8 +28,8 @@ type ClusterExecutorImpl struct {
 	Logger             *zap.Logger
 }
 
-func NewClusterExecutor(n *influxdb.Node, s TSDBStore, m MetaClient, Config Config) *ClusterExecutorImpl {
-	return &ClusterExecutorImpl{
+func NewClusterExecutor(n *influxdb.Node, s TSDBStore, m MetaClient, Config Config) *ClusterExecutor {
+	return &ClusterExecutor{
 		Node:       n,
 		TSDBStore:  s,
 		MetaClient: m,
@@ -43,7 +43,7 @@ func NewClusterExecutor(n *influxdb.Node, s TSDBStore, m MetaClient, Config Conf
 	}
 }
 
-func (me *ClusterExecutorImpl) WithLogger(log *zap.Logger) {
+func (me *ClusterExecutor) WithLogger(log *zap.Logger) {
 	me.Logger = log.With(zap.String("service", "ClusterExecutor"))
 }
 
@@ -673,7 +673,7 @@ func (me Node2ShardIDs) Apply(fn func(nodeId uint64, shardIDs []uint64)) {
 	}
 }
 
-func (me *ClusterExecutorImpl) TaskManagerStatement(tm *query.TaskManager, stmt influxql.Statement, ctx *query.ExecutionContext) error {
+func (me *ClusterExecutor) TaskManagerStatement(tm *query.TaskManager, stmt influxql.Statement, ctx *query.ExecutionContext) error {
 	type Result struct {
 		qr  *query.Result
 		err error
@@ -777,7 +777,7 @@ func (me *ClusterExecutorImpl) TaskManagerStatement(tm *query.TaskManager, stmt 
 	return nil
 }
 
-func (me *ClusterExecutorImpl) ExecuteStatement(stmt influxql.Statement, database string) error {
+func (me *ClusterExecutor) ExecuteStatement(stmt influxql.Statement, database string) error {
 	type Result struct {
 		err error
 	}
@@ -835,7 +835,7 @@ func (me *ClusterExecutorImpl) ExecuteStatement(stmt influxql.Statement, databas
 	return nil
 }
 
-func (me *ClusterExecutorImpl) DeleteMeasurement(database, name string) error {
+func (me *ClusterExecutor) DeleteMeasurement(database, name string) error {
 	type Result struct {
 		err error
 	}
@@ -879,7 +879,7 @@ func (me *ClusterExecutorImpl) DeleteMeasurement(database, name string) error {
 	return nil
 }
 
-func (me *ClusterExecutorImpl) DeleteDatabase(database string) error {
+func (me *ClusterExecutor) DeleteDatabase(database string) error {
 	type Result struct {
 		err error
 	}
@@ -923,7 +923,7 @@ func (me *ClusterExecutorImpl) DeleteDatabase(database string) error {
 	return nil
 }
 
-func (me *ClusterExecutorImpl) DeleteSeries(database string, sources []influxql.Source, cond influxql.Expr) error {
+func (me *ClusterExecutor) DeleteSeries(database string, sources []influxql.Source, cond influxql.Expr) error {
 	type Result struct {
 		err error
 	}
@@ -969,7 +969,7 @@ func (me *ClusterExecutorImpl) DeleteSeries(database string, sources []influxql.
 	return nil
 }
 
-func (me *ClusterExecutorImpl) SeriesCardinality(database string) (int64, error) {
+func (me *ClusterExecutor) SeriesCardinality(database string) (int64, error) {
 	type Result struct {
 		n   int64
 		err error
@@ -1032,7 +1032,7 @@ func DatabaseShards(c MetaClient, db string) ([]meta.ShardInfo, error) {
 	return shards, nil
 }
 
-func (me *ClusterExecutorImpl) MeasurementNames(auth query.Authorizer, database string, cond influxql.Expr) ([][]byte, error) {
+func (me *ClusterExecutor) MeasurementNames(auth query.Authorizer, database string, cond influxql.Expr) ([][]byte, error) {
 	type Result struct {
 		names [][]byte
 		err   error
@@ -1094,7 +1094,7 @@ func (me *ClusterExecutorImpl) MeasurementNames(auth query.Authorizer, database 
 	return names, nil
 }
 
-func (me *ClusterExecutorImpl) TagValues(auth query.Authorizer, ids []uint64, cond influxql.Expr) ([]tsdb.TagValues, error) {
+func (me *ClusterExecutor) TagValues(auth query.Authorizer, ids []uint64, cond influxql.Expr) ([]tsdb.TagValues, error) {
 	type TagValuesResult struct {
 		values []tsdb.TagValues
 		err    error
@@ -1172,7 +1172,7 @@ func (me *ClusterExecutorImpl) TagValues(auth query.Authorizer, ids []uint64, co
 	return tagValues, nil
 }
 
-func (me *ClusterExecutorImpl) CreateIterator(ctx context.Context, m *influxql.Measurement, opt query.IteratorOptions, shards []meta.ShardInfo) (query.Iterator, error) {
+func (me *ClusterExecutor) CreateIterator(ctx context.Context, m *influxql.Measurement, opt query.IteratorOptions, shards []meta.ShardInfo) (query.Iterator, error) {
 	type Result struct {
 		iter query.Iterator
 		err  error
@@ -1259,7 +1259,7 @@ func (me *ClusterExecutorImpl) CreateIterator(ctx context.Context, m *influxql.M
 	return query.Iterators(inputs).Merge(opt)
 }
 
-func (me *ClusterExecutorImpl) MapType(m *influxql.Measurement, field string, shards []meta.ShardInfo) influxql.DataType {
+func (me *ClusterExecutor) MapType(m *influxql.Measurement, field string, shards []meta.ShardInfo) influxql.DataType {
 	type Result struct {
 		dataType influxql.DataType
 		err      error
@@ -1333,7 +1333,7 @@ func (me *ClusterExecutorImpl) MapType(m *influxql.Measurement, field string, sh
 	return typ
 }
 
-func (me *ClusterExecutorImpl) IteratorCost(m *influxql.Measurement, opt query.IteratorOptions, shards []meta.ShardInfo) (query.IteratorCost, error) {
+func (me *ClusterExecutor) IteratorCost(m *influxql.Measurement, opt query.IteratorOptions, shards []meta.ShardInfo) (query.IteratorCost, error) {
 	type Result struct {
 		cost query.IteratorCost
 		err  error
@@ -1393,7 +1393,7 @@ func (me *ClusterExecutorImpl) IteratorCost(m *influxql.Measurement, opt query.I
 	return costs, nil
 }
 
-func (me *ClusterExecutorImpl) FieldDimensions(m *influxql.Measurement, shards []meta.ShardInfo) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error) {
+func (me *ClusterExecutor) FieldDimensions(m *influxql.Measurement, shards []meta.ShardInfo) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error) {
 	type Result struct {
 		fields     map[string]influxql.DataType
 		dimensions map[string]struct{}
@@ -1472,7 +1472,7 @@ func GetShardInfoByIds(MetaClient MetaClient, ids []uint64) ([]meta.ShardInfo, e
 	return shards, nil
 }
 
-func (me *ClusterExecutorImpl) TagKeys(auth query.Authorizer, ids []uint64, cond influxql.Expr) ([]tsdb.TagKeys, error) {
+func (me *ClusterExecutor) TagKeys(auth query.Authorizer, ids []uint64, cond influxql.Expr) ([]tsdb.TagKeys, error) {
 	type TagKeysResult struct {
 		keys []tsdb.TagKeys
 		err  error
