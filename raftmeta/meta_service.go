@@ -11,7 +11,6 @@ import (
 
 	"github.com/angopher/chronus/raftmeta/internal"
 	imeta "github.com/angopher/chronus/services/meta"
-	"github.com/angopher/chronus/x"
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxql"
@@ -102,7 +101,7 @@ func (s *MetaService) CreateDatabase(w http.ResponseWriter, r *http.Request) {
 	resp.DbInfo = *db
 	resp.RetCode = 0
 	resp.RetMsg = "ok"
-	s.Logger.Error("CreateDatabase ok", zap.String("name", req.Name))
+	s.Logger.Info("CreateDatabase ok", zap.String("name", req.Name))
 	return
 }
 
@@ -501,7 +500,7 @@ func (s *MetaService) CreateDatabaseWithRetentionPolicy(w http.ResponseWriter, r
 	resp.DbInfo = *db
 	resp.RetCode = 0
 	resp.RetMsg = "ok"
-	s.Logger.Error("CreateDatabaseWithRetentionPolicy ok",
+	s.Logger.Info("CreateDatabaseWithRetentionPolicy ok",
 		zap.String("Name", req.Name),
 		zap.String("Rps.Name", req.Rps.Name),
 		zap.Int("Rps.ReplicaN", req.Rps.ReplicaN),
@@ -639,7 +638,7 @@ func (s *MetaService) UpdateUser(w http.ResponseWriter, r *http.Request) {
 
 	resp.RetCode = 0
 	resp.RetMsg = "ok"
-	s.Logger.Error("UpdateUser ok",
+	s.Logger.Info("UpdateUser ok",
 		zap.String("Name", req.Name),
 		zap.String("Password", req.Password))
 }
@@ -660,22 +659,34 @@ func (s *MetaService) SetPrivilege(w http.ResponseWriter, r *http.Request) {
 	defer WriteResp(w, &resp)
 
 	data, err := ioutil.ReadAll(r.Body)
-	x.Check(err)
+	if err != nil {
+		resp.RetMsg = err.Error()
+		s.Logger.Error("SetPrivilege fail", zap.Error(err))
+		return
+	}
 
 	var req SetPrivilegeReq
 	if err := json.Unmarshal(data, &req); err != nil {
 		resp.RetMsg = err.Error()
+		s.Logger.Error("SetPrivilege fail", zap.Error(err))
 		return
 	}
 
 	err = s.ProposeAndWait(internal.SetPrivilege, data, nil)
 	if err != nil {
+		s.Logger.Error("SetPrivilege fail",
+			zap.String("UserName", req.UserName),
+			zap.String("Database", req.Database),
+			zap.Error(err))
 		resp.RetMsg = err.Error()
 		return
 	}
 
 	resp.RetCode = 0
 	resp.RetMsg = "ok"
+	s.Logger.Info("SetPrivilege ok",
+		zap.String("UserName", req.UserName),
+		zap.String("Database", req.Database))
 }
 
 type SetAdminPrivilegeReq struct {
@@ -693,22 +704,34 @@ func (s *MetaService) SetAdminPrivilege(w http.ResponseWriter, r *http.Request) 
 	defer WriteResp(w, &resp)
 
 	data, err := ioutil.ReadAll(r.Body)
-	x.Check(err)
+	if err != nil {
+		resp.RetMsg = err.Error()
+		s.Logger.Error("SetAdminPrivilege fail", zap.Error(err))
+		return
+	}
 
 	var req SetAdminPrivilegeReq
 	if err := json.Unmarshal(data, &req); err != nil {
 		resp.RetMsg = err.Error()
+		s.Logger.Error("SetAdminPrivilege fail", zap.Error(err))
 		return
 	}
 
 	err = s.ProposeAndWait(internal.SetAdminPrivilege, data, nil)
 	if err != nil {
 		resp.RetMsg = err.Error()
+		s.Logger.Error("SetAdminPrivilege fail",
+			zap.String("UserName", req.UserName),
+			zap.Bool("Admin", req.Admin),
+			zap.Error(err))
 		return
 	}
 
 	resp.RetCode = 0
 	resp.RetMsg = "ok"
+	s.Logger.Info("SetAdminPrivilege ok",
+		zap.String("UserName", req.UserName),
+		zap.Bool("Admin", req.Admin))
 }
 
 type AuthenticateReq struct {
@@ -727,17 +750,26 @@ func (s *MetaService) Authenticate(w http.ResponseWriter, r *http.Request) {
 	defer WriteResp(w, &resp)
 
 	data, err := ioutil.ReadAll(r.Body)
-	x.Check(err)
+	if err != nil {
+		resp.RetMsg = err.Error()
+		s.Logger.Error("Authenticate fail", zap.Error(err))
+		return
+	}
 
 	var req AuthenticateReq
 	if err := json.Unmarshal(data, &req); err != nil {
 		resp.RetMsg = err.Error()
+		s.Logger.Error("Authenticate fail", zap.Error(err))
 		return
 	}
 
 	user := &meta.UserInfo{}
 	err = s.ProposeAndWait(internal.Authenticate, data, user)
 	if err != nil {
+		s.Logger.Error("Authenticate fail",
+			zap.String("UserName", req.UserName),
+			zap.String("Password", req.Password),
+			zap.Error(err))
 		resp.RetMsg = err.Error()
 		return
 	}
@@ -745,6 +777,9 @@ func (s *MetaService) Authenticate(w http.ResponseWriter, r *http.Request) {
 	resp.UserInfo = *(user)
 	resp.RetCode = 0
 	resp.RetMsg = "ok"
+	s.Logger.Info("Authenticate ok",
+		zap.String("UserName", req.UserName),
+		zap.String("Password", req.Password))
 }
 
 type DropShardReq struct {
@@ -761,22 +796,31 @@ func (s *MetaService) DropShard(w http.ResponseWriter, r *http.Request) {
 	defer WriteResp(w, &resp)
 
 	data, err := ioutil.ReadAll(r.Body)
-	x.Check(err)
+	if err != nil {
+		resp.RetMsg = err.Error()
+		s.Logger.Error("DropShard fail", zap.Error(err))
+		return
+	}
 
 	var req DropShardReq
 	if err := json.Unmarshal(data, &req); err != nil {
 		resp.RetMsg = err.Error()
+		s.Logger.Error("DropShard fail", zap.Error(err))
 		return
 	}
 
 	err = s.ProposeAndWait(internal.DropShard, data, nil)
 	if err != nil {
 		resp.RetMsg = err.Error()
+		s.Logger.Error("DropShard fail",
+			zap.Uint64("Id", req.Id),
+			zap.Error(err))
 		return
 	}
 
 	resp.RetCode = 0
 	resp.RetMsg = "ok"
+	s.Logger.Info("DropShard ok", zap.Uint64("Id", req.Id))
 }
 
 type TruncateShardGroupsReq struct {
@@ -793,22 +837,31 @@ func (s *MetaService) TruncateShardGroups(w http.ResponseWriter, r *http.Request
 	defer WriteResp(w, &resp)
 
 	data, err := ioutil.ReadAll(r.Body)
-	x.Check(err)
+	if err != nil {
+		resp.RetMsg = err.Error()
+		s.Logger.Error("TruncateShardGroups fail", zap.Error(err))
+		return
+	}
 
 	var req TruncateShardGroupsReq
 	if err := json.Unmarshal(data, &req); err != nil {
 		resp.RetMsg = err.Error()
+		s.Logger.Error("TruncateShardGroups fail", zap.Error(err))
 		return
 	}
 
 	err = s.ProposeAndWait(internal.TruncateShardGroups, data, nil)
 	if err != nil {
+		s.Logger.Error("TruncateShardGroups fail",
+			zap.Time("Time", req.Time),
+			zap.Error(err))
 		resp.RetMsg = err.Error()
 		return
 	}
 
 	resp.RetCode = 0
 	resp.RetMsg = "ok"
+	s.Logger.Info("TruncateShardGroups ok", zap.Time("Time", req.Time))
 }
 
 type PruneShardGroupsResp struct {
@@ -824,11 +877,13 @@ func (s *MetaService) PruneShardGroups(w http.ResponseWriter, r *http.Request) {
 	err := s.ProposeAndWait(internal.PruneShardGroups, []byte{}, nil)
 	if err != nil {
 		resp.RetMsg = err.Error()
+		s.Logger.Error("PruneShardGroups fail", zap.Error(err))
 		return
 	}
 
 	resp.RetCode = 0
 	resp.RetMsg = "ok"
+	s.Logger.Info("PruneShardGroups ok")
 }
 
 //DeleteShardGroup
@@ -848,22 +903,36 @@ func (s *MetaService) DeleteShardGroup(w http.ResponseWriter, r *http.Request) {
 	defer WriteResp(w, &resp)
 
 	data, err := ioutil.ReadAll(r.Body)
-	x.Check(err)
+	if err != nil {
+		resp.RetMsg = err.Error()
+		s.Logger.Error("TruncateShardGroups fail", zap.Error(err))
+		return
+	}
 
 	var req DeleteShardGroupReq
 	if err := json.Unmarshal(data, &req); err != nil {
 		resp.RetMsg = err.Error()
+		s.Logger.Error("TruncateShardGroups fail", zap.Error(err))
 		return
 	}
 
 	err = s.ProposeAndWait(internal.DeleteShardGroup, data, nil)
 	if err != nil {
 		resp.RetMsg = err.Error()
+		s.Logger.Error("TruncateShardGroups fail",
+			zap.String("Database", req.Database),
+			zap.String("Policy", req.Policy),
+			zap.Uint64("Id", req.Id),
+			zap.Error(err))
 		return
 	}
 
 	resp.RetCode = 0
 	resp.RetMsg = "ok"
+	s.Logger.Info("TruncateShardGroups ok",
+		zap.String("Database", req.Database),
+		zap.String("Policy", req.Policy),
+		zap.Uint64("Id", req.Id))
 }
 
 //PrecreateShardGroups
@@ -882,22 +951,34 @@ func (s *MetaService) PrecreateShardGroups(w http.ResponseWriter, r *http.Reques
 	defer WriteResp(w, &resp)
 
 	data, err := ioutil.ReadAll(r.Body)
-	x.Check(err)
+	if err != nil {
+		resp.RetMsg = err.Error()
+		s.Logger.Error("PrecreateShardGroups fail", zap.Error(err))
+		return
+	}
 
 	var req PrecreateShardGroupsReq
 	if err := json.Unmarshal(data, &req); err != nil {
 		resp.RetMsg = err.Error()
+		s.Logger.Error("PrecreateShardGroups fail", zap.Error(err))
 		return
 	}
 
 	err = s.ProposeAndWait(internal.PrecreateShardGroups, data, nil)
 	if err != nil {
 		resp.RetMsg = err.Error()
+		s.Logger.Error("PrecreateShardGroups fail",
+			zap.Time("From", req.From),
+			zap.Time("To", req.To),
+			zap.Error(err))
 		return
 	}
 
 	resp.RetCode = 0
 	resp.RetMsg = "ok"
+	s.Logger.Info("PrecreateShardGroups ok",
+		zap.Time("From", req.From),
+		zap.Time("To", req.To))
 }
 
 //CreateContinuousQuery
@@ -917,22 +998,36 @@ func (s *MetaService) CreateContinuousQuery(w http.ResponseWriter, r *http.Reque
 	defer WriteResp(w, &resp)
 
 	data, err := ioutil.ReadAll(r.Body)
-	x.Check(err)
+	if err != nil {
+		resp.RetMsg = err.Error()
+		s.Logger.Error("CreateContinuousQuery fail", zap.Error(err))
+		return
+	}
 
 	var req CreateContinuousQueryReq
 	if err := json.Unmarshal(data, &req); err != nil {
 		resp.RetMsg = err.Error()
+		s.Logger.Error("CreateContinuousQuery fail", zap.Error(err))
 		return
 	}
 
 	err = s.ProposeAndWait(internal.CreateContinuousQuery, data, nil)
 	if err != nil {
 		resp.RetMsg = err.Error()
+		s.Logger.Error("CreateContinuousQuery fail",
+			zap.String("Database", req.Database),
+			zap.String("Name", req.Name),
+			zap.String("Query", req.Query),
+			zap.Error(err))
 		return
 	}
 
 	resp.RetCode = 0
 	resp.RetMsg = "ok"
+	s.Logger.Info("CreateContinuousQuery ok",
+		zap.String("Database", req.Database),
+		zap.String("Name", req.Name),
+		zap.String("Query", req.Query))
 }
 
 //DropContinuousQuery
@@ -951,22 +1046,34 @@ func (s *MetaService) DropContinuousQuery(w http.ResponseWriter, r *http.Request
 	defer WriteResp(w, &resp)
 
 	data, err := ioutil.ReadAll(r.Body)
-	x.Check(err)
+	if err != nil {
+		resp.RetMsg = err.Error()
+		s.Logger.Error("DropContinuousQuery fail", zap.Error(err))
+		return
+	}
 
 	var req DropContinuousQueryReq
 	if err := json.Unmarshal(data, &req); err != nil {
 		resp.RetMsg = err.Error()
+		s.Logger.Error("DropContinuousQuery fail", zap.Error(err))
 		return
 	}
 
 	err = s.ProposeAndWait(internal.DropContinuousQuery, data, nil)
 	if err != nil {
 		resp.RetMsg = err.Error()
+		s.Logger.Error("DropContinuousQuery fail",
+			zap.String("Database", req.Database),
+			zap.String("Name", req.Name),
+			zap.Error(err))
 		return
 	}
 
 	resp.RetCode = 0
 	resp.RetMsg = "ok"
+	s.Logger.Info("DropContinuousQuery ok",
+		zap.String("Database", req.Database),
+		zap.String("Name", req.Name))
 }
 
 //CreateSubscription
@@ -988,22 +1095,40 @@ func (s *MetaService) CreateSubscription(w http.ResponseWriter, r *http.Request)
 	defer WriteResp(w, &resp)
 
 	data, err := ioutil.ReadAll(r.Body)
-	x.Check(err)
+	if err != nil {
+		resp.RetMsg = err.Error()
+		s.Logger.Error("CreateSubscriptionReq fail", zap.Error(err))
+		return
+	}
 
 	var req CreateSubscriptionReq
 	if err := json.Unmarshal(data, &req); err != nil {
 		resp.RetMsg = err.Error()
+		s.Logger.Error("CreateSubscriptionReq fail", zap.Error(err))
 		return
 	}
 
 	err = s.ProposeAndWait(internal.CreateSubscription, data, nil)
 	if err != nil {
 		resp.RetMsg = err.Error()
+		s.Logger.Error("CreateSubscriptionReq fail",
+			zap.String("Database", req.Database),
+			zap.String("Rp", req.Rp),
+			zap.String("Name", req.Name),
+			zap.String("Mode", req.Mode),
+			zap.Strings("Destinations", req.Destinations),
+			zap.Error(err))
 		return
 	}
 
 	resp.RetCode = 0
 	resp.RetMsg = "ok"
+	s.Logger.Info("CreateSubscriptionReq ok",
+		zap.String("Database", req.Database),
+		zap.String("Rp", req.Rp),
+		zap.String("Name", req.Name),
+		zap.String("Mode", req.Mode),
+		zap.Strings("Destinations", req.Destinations))
 }
 
 //DropSubscription
@@ -1023,22 +1148,36 @@ func (s *MetaService) DropSubscription(w http.ResponseWriter, r *http.Request) {
 	defer WriteResp(w, &resp)
 
 	data, err := ioutil.ReadAll(r.Body)
-	x.Check(err)
+	if err != nil {
+		resp.RetMsg = err.Error()
+		s.Logger.Error("DropSubscription fail", zap.Error(err))
+		return
+	}
 
 	var req DropSubscriptionReq
 	if err := json.Unmarshal(data, &req); err != nil {
 		resp.RetMsg = err.Error()
+		s.Logger.Error("DropSubscription fail", zap.Error(err))
 		return
 	}
 
 	err = s.ProposeAndWait(internal.DropSubscription, data, nil)
 	if err != nil {
 		resp.RetMsg = err.Error()
+		s.Logger.Error("DropSubscription fail",
+			zap.String("Database", req.Database),
+			zap.String("Rp", req.Rp),
+			zap.String("Name", req.Name),
+			zap.Error(err))
 		return
 	}
 
 	resp.RetCode = 0
 	resp.RetMsg = "ok"
+	s.Logger.Info("DropSubscription ok",
+		zap.String("Database", req.Database),
+		zap.String("Rp", req.Rp),
+		zap.String("Name", req.Name))
 }
 
 type AcquireLeaseReq struct {
@@ -1058,11 +1197,16 @@ func (s *MetaService) AcquireLease(w http.ResponseWriter, r *http.Request) {
 	defer WriteResp(w, &resp)
 
 	data, err := ioutil.ReadAll(r.Body)
-	x.Check(err)
+	if err != nil {
+		resp.RetMsg = err.Error()
+		s.Logger.Error("AcquireLease fail", zap.Error(err))
+		return
+	}
 
 	var req AcquireLeaseReq
 	if err := json.Unmarshal(data, &req); err != nil {
 		resp.RetMsg = err.Error()
+		s.Logger.Error("AcquireLease fail", zap.Error(err))
 		return
 	}
 
@@ -1070,12 +1214,19 @@ func (s *MetaService) AcquireLease(w http.ResponseWriter, r *http.Request) {
 	err = s.ProposeAndWait(internal.AcquireLease, data, lease)
 	if err != nil {
 		resp.RetMsg = err.Error()
+		s.Logger.Error("AcquireLease fail",
+			zap.String("Name", req.Name),
+			zap.Uint64("NodeId", req.NodeId),
+			zap.Error(err))
 		return
 	}
 
 	resp.Lease = *lease
 	resp.RetCode = 0
 	resp.RetMsg = "ok"
+	s.Logger.Info("AcquireLease ok",
+		zap.String("Name", req.Name),
+		zap.Uint64("NodeId", req.NodeId))
 }
 
 type DataResp struct {
