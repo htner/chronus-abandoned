@@ -17,7 +17,6 @@ import (
 )
 
 func (s *RaftNode) HandleUpdateCluster(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("recv join cluster")
 	resp := &CommonResp{}
 	resp.RetCode = -1
 	resp.RetMsg = "fail"
@@ -41,7 +40,6 @@ func (s *RaftNode) HandleUpdateCluster(w http.ResponseWriter, r *http.Request) {
 	} else if op == "remove" {
 		typ = raftpb.ConfChangeRemoveNode
 		nodeId, err = strconv.ParseUint(r.FormValue("node_id"), 10, 64)
-		fmt.Printf("%+v\n", r.Form)
 		x.Check(err)
 	} else {
 		resp.RetMsg = fmt.Sprintf("unkown op:%s", op)
@@ -81,7 +79,7 @@ func (s *RaftNode) HandleMessage(w http.ResponseWriter, r *http.Request) {
 	err = msg.Unmarshal(data)
 	x.Check(err)
 	if msg.Type != raftpb.MsgHeartbeat && msg.Type != raftpb.MsgHeartbeatResp {
-		s.Logger.Info("recv message", zap.String("type:", msg.Type.String()))
+		s.Logger.Info("recv message", zap.String("type", msg.Type.String()))
 	}
 	s.RecvRaftRPC(context.Background(), msg)
 }

@@ -85,7 +85,7 @@ func (l *Linearizabler) ReadLoop() {
 				return
 			}
 
-			fmt.Printf("failed to get read index from raft: %v\n", err)
+			//fmt.Printf("failed to get read index from raft: %v\n", err)
 			//readIndexFailed.Inc()
 			nr.notify(err)
 			continue
@@ -116,7 +116,7 @@ func (l *Linearizabler) ReadLoop() {
 				//record ReadIndexFail
 				nr.notify(errors.New("leader change"))
 			case <-time.After(l.timeout):
-				fmt.Println("timed out waiting for read index response (local node might have slow network)")
+				//fmt.Println("timed out waiting for read index response (local node might have slow network)")
 				nr.notify(errors.New("timeout"))
 				isTimeout = true
 				//record slowReadIndex
