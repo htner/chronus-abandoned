@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
+	imeta "github.com/angopher/chronus/services/meta"
 	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxql"
-
-	"github.com/angopher/chronus/services/meta"
 )
 
 func TestMetaClient_CreateDatabaseOnly(t *testing.T) {
@@ -1105,41 +1105,13 @@ func TestMetaClient_PruneShardGroups(t *testing.T) {
 	}
 }
 
-func TestMetaClient_PersistClusterIDAfterRestart(t *testing.T) {
-	t.Parallel()
-
+func newClient() (string, *imeta.Client) {
 	cfg := newConfig()
-	defer os.RemoveAll(cfg.Dir)
-
-	c := meta.NewClient(cfg)
-	if err := c.Open(); err != nil {
-		t.Fatal(err)
-	}
-	id := c.ClusterID()
-	if id == 0 {
-		t.Fatal("cluster ID can't be zero")
-	}
-
-	c = meta.NewClient(cfg)
-	if err := c.Open(); err != nil {
-		t.Fatal(err)
-	}
-	defer c.Close()
-
-	idAfter := c.ClusterID()
-	if idAfter == 0 {
-		t.Fatal("cluster ID can't be zero")
-	} else if idAfter != id {
-		t.Fatalf("cluster id not the same: %d, %d", idAfter, id)
-	}
-}
-
-func newClient() (string, *meta.Client) {
-	cfg := newConfig()
-	c := meta.NewClient(cfg)
+	c := imeta.NewClient(cfg)
 	if err := c.Open(); err != nil {
 		panic(err)
 	}
+	c.CreateDataNode("127.0.0.1:8080", "127.0.0.1:2347")
 	return cfg.Dir, c
 }
 

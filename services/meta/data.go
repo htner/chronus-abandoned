@@ -2,6 +2,7 @@ package meta
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"time"
@@ -364,7 +365,7 @@ func (data *Data) UnmarshalBinary(buf []byte) error {
 func (data *Data) CreateShardGroup(database, policy string, timestamp time.Time) error {
 	// Ensure there are nodes in the metadata.
 	if len(data.DataNodes) == 0 {
-		return nil
+		return errors.New("not find data node, cannot create shard group")
 	}
 
 	// Find retention policy.
@@ -431,4 +432,3 @@ func (data *Data) CreateShardGroup(database, policy string, timestamp time.Time)
 
 	return nil
 }
-

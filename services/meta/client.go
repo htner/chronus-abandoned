@@ -326,7 +326,7 @@ func (c *Client) CreateDatabaseWithRetentionPolicy(name string, spec *meta.Reten
 		// In this case we already have a retention policy on the database and
 		// the provided retention policy does not match it. Therefore, this call
 		// is not idempotent and we need to return an error.
-		return nil, ErrRetentionPolicyConflict
+		return nil, meta.ErrRetentionPolicyConflict
 	}
 
 	// If a non-default retention policy was passed in that already exists then
@@ -334,7 +334,7 @@ func (c *Client) CreateDatabaseWithRetentionPolicy(name string, spec *meta.Reten
 	// provided. CREATE DATABASE WITH RETENTION POLICY should only be used to
 	// create DEFAULT retention policies.
 	if db.DefaultRetentionPolicy != rpi.Name {
-		return nil, ErrRetentionPolicyConflict
+		return nil, meta.ErrRetentionPolicyConflict
 	}
 
 	// Commit the changes.
@@ -451,7 +451,7 @@ func (c *Client) Users() []meta.UserInfo {
 	return users
 }
 
-// User returns the user with the given name, or ErrUserNotFound.
+// User returns the user with the given name, or meta.ErrUserNotFound.
 func (c *Client) User(name string) (meta.User, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -465,7 +465,7 @@ func (c *Client) user(name string) (meta.User, error) {
 		}
 	}
 
-	return nil, ErrUserNotFound
+	return nil, meta.ErrUserNotFound
 }
 
 // bcryptCost is the cost associated with generating password with bcrypt.
@@ -500,7 +500,7 @@ func (c *Client) CreateUser(name, password string, admin bool) (meta.User, error
 	// See if the user already exists.
 	if u, err := c.user(name); err != nil && u != nil {
 		if err := bcrypt.CompareHashAndPassword([]byte(u.(*meta.UserInfo).Hash), []byte(password)); err != nil || u.(*meta.UserInfo).Admin != admin {
-			return nil, ErrUserExists
+			return nil, meta.ErrUserExists
 		}
 		return u, nil
 	}
@@ -639,7 +639,7 @@ func (c *Client) Authenticate(username, password string) (meta.User, error) {
 		return nil, err
 	}
 	if userInfo == nil {
-		return nil, ErrUserNotFound
+		return nil, meta.ErrUserNotFound
 	}
 
 	// Check the local auth cache first.
@@ -657,7 +657,7 @@ func (c *Client) Authenticate(username, password string) (meta.User, error) {
 
 	// Compare password with user hash.
 	if err := bcrypt.CompareHashAndPassword([]byte(userInfo.(*meta.UserInfo).Hash), []byte(password)); err != nil {
-		return nil, ErrAuthenticate
+		return nil, meta.ErrAuthenticate
 	}
 
 	// generate a salt and hash of the password for the cache
@@ -834,7 +834,7 @@ func (c *Client) CreateShardGroup(database, policy string, timestamp time.Time) 
 func createShardGroup(data *Data, database, policy string, timestamp time.Time) (*meta.ShardGroupInfo, error) {
 	// It is the responsibility of the caller to check if it exists before calling this method.
 	if sg, _ := data.ShardGroupByTimestamp(database, policy, timestamp); sg != nil {
-		return nil, ErrShardGroupExists
+		return nil, meta.ErrShardGroupExists
 	}
 
 	if err := data.CreateShardGroup(database, policy, timestamp); err != nil {
