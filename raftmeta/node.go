@@ -112,10 +112,6 @@ func (r *lockedSource) Seed(seed int64) {
 	r.src.Seed(seed)
 }
 
-func NodeAddr(id uint64) string {
-	return fmt.Sprintf("127.0.0.1:800%d", id)
-}
-
 type Checksum struct {
 	needVerify bool //leader use to trigger checksum verify
 	index      uint64
@@ -265,13 +261,9 @@ func (s *RaftNode) InitAndStartNode(peers []raft.Peer) {
 	if restart {
 		s.Logger.Info("Restarting node")
 		s.restoreFromSnapshot()
-		//TODO
 		s.Node = raft.RestartNode(s.RaftConfig)
 	} else {
 		s.Logger.Info("Starting node")
-		//for _, peer := range peers {
-		//    s.PeersAddr[peer.ID] = NodeAddr(peer.ID)
-		//}
 		if len(peers) == 0 {
 			data, err := json.Marshal(s.RaftCtx)
 			x.Check(err)
