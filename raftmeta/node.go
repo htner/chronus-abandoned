@@ -137,7 +137,7 @@ type RaftNode struct {
 	PeersAddr     map[uint64]string
 	Done          chan struct{}
 	props         *proposals
-	Rand          *rand.Rand
+	rand          *rand.Rand
 	applyCh       chan *internal.EntryWrapper
 	appliedIndex  uint64
 
@@ -190,7 +190,7 @@ func NewRaftNode(c *raft.Config, config Config) *RaftNode {
 		PeersAddr:     make(map[uint64]string),
 		Done:          make(chan struct{}),
 		props:         newProposals(),
-		Rand:          rand.New(&lockedSource{src: rand.NewSource(time.Now().UnixNano())}),
+		rand:          rand.New(&lockedSource{src: rand.NewSource(time.Now().UnixNano())}),
 		applyCh:       make(chan *internal.EntryWrapper, config.NumPendingProposals),
 		readStateC:    make(chan raft.ReadState, 1),
 		applyWait:     wait.NewTimeList(),
@@ -201,7 +201,7 @@ func NewRaftNode(c *raft.Config, config Config) *RaftNode {
 
 // uniqueKey is meant to be unique across all the replicas.
 func (s *RaftNode) uniqueKey() string {
-	return fmt.Sprintf("%02d-%d", s.ID, s.Rand.Uint64())
+	return fmt.Sprintf("%02d-%d", s.ID, s.rand.Uint64())
 }
 
 func (s *RaftNode) setAppliedIndex(v uint64) {
@@ -472,7 +472,7 @@ func (s *RaftNode) applyConfChange(e *raftpb.Entry) {
 	s.Logger.Info(fmt.Sprintf("conf change: %+v", cc))
 
 	if cc.Type == raftpb.ConfChangeRemoveNode {
-		delete(s.PeersAddr, cc.NodeID)
+		s.DeletePeer(cc.NodeID)
 	} else if len(cc.Context) > 0 {
 		var rc internal.RaftContext
 		x.Check(json.Unmarshal(cc.Context, &rc))
@@ -508,6 +508,12 @@ func (s *RaftNode) SetPeer(id uint64, addr string) {
 	s.rwMutex.Lock()
 	defer s.rwMutex.Unlock()
 	s.PeersAddr[id] = addr
+}
+
+func (s *RaftNode) DeletePeer(id uint64) {
+	s.rwMutex.Lock()
+	defer s.rwMutex.Unlock()
+	delete(s.PeersAddr, id)
 }
 
 func (s *RaftNode) Peer(id uint64) (string, bool) {
