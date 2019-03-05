@@ -2,7 +2,6 @@ package meta
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"sort"
 	"time"
@@ -35,7 +34,7 @@ func (data *Data) DataNode(id uint64) *meta.NodeInfo {
 func (data *Data) CreateDataNode(host, tcpHost string) error {
 	// Ensure a node with the same host doesn't already exist.
 	for _, n := range data.DataNodes {
-		if n.TCPHost == tcpHost {
+		if n.TCPHost == tcpHost || n.Host == host {
 			return ErrNodeExists
 		}
 	}
@@ -44,7 +43,7 @@ func (data *Data) CreateDataNode(host, tcpHost string) error {
 	// then these nodes are actually the same so re-use the existing ID
 	var existingID uint64
 	for _, n := range data.MetaNodes {
-		if n.TCPHost == tcpHost {
+		if n.TCPHost == tcpHost || n.Host == host {
 			existingID = n.ID
 			break
 		}
@@ -67,32 +66,16 @@ func (data *Data) CreateDataNode(host, tcpHost string) error {
 	return nil
 }
 
-// setDataNode adds a data node with a pre-specified nodeID.
-// this should only be used when the cluster is upgrading from 0.9 to 0.10
-func (data *Data) setDataNode(nodeID uint64, host, tcpHost string) error {
-	// Ensure a node with the same host doesn't already exist.
-	for _, n := range data.DataNodes {
-		if n.Host == host {
-			return ErrNodeExists
-		}
-	}
-
-	// Append new node.
-	data.DataNodes = append(data.DataNodes, meta.NodeInfo{
-		ID:      nodeID,
-		Host:    host,
-		TCPHost: tcpHost,
-	})
-
-	return nil
-}
-
 // DeleteDataNode removes a node from the Meta store.
 //
 // If necessary, DeleteDataNode reassigns ownership of any shards that
 // would otherwise become orphaned by the removal of the node from the
 // cluster.
 func (data *Data) DeleteDataNode(id uint64) error {
+	if id == 0 {
+		return ErrNodeIDRequired
+	}
+
 	var nodes []meta.NodeInfo
 
 	// Remove the data node from the store's list.
@@ -262,24 +245,6 @@ func (data *Data) CreateMetaNode(httpAddr, tcpAddr string) error {
 	return nil
 }
 
-// SetMetaNode will update the information for the single meta
-// node or create a new metanode. If there are more than 1 meta
-// nodes already, an error will be returned
-func (data *Data) SetMetaNode(httpAddr, tcpAddr string) error {
-	if len(data.MetaNodes) > 1 {
-		return fmt.Errorf("can't set meta node when there are more than 1 in the metastore")
-	}
-
-	if len(data.MetaNodes) == 0 {
-		return data.CreateMetaNode(httpAddr, tcpAddr)
-	}
-
-	data.MetaNodes[0].Host = httpAddr
-	data.MetaNodes[0].TCPHost = tcpAddr
-
-	return nil
-}
-
 // DeleteMetaNode will remove the meta node from the store
 func (data *Data) DeleteMetaNode(id uint64) error {
 	// Node has to be larger than 0 to be real
@@ -365,7 +330,7 @@ func (data *Data) UnmarshalBinary(buf []byte) error {
 func (data *Data) CreateShardGroup(database, policy string, timestamp time.Time) error {
 	// Ensure there are nodes in the metadata.
 	if len(data.DataNodes) == 0 {
-		return errors.New("not find data node, cannot create shard group")
+		return ErrNodeNotFound
 	}
 
 	// Find retention policy.
