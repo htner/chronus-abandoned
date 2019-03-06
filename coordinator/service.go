@@ -4,8 +4,6 @@ import (
 	"encoding"
 	"encoding/binary"
 	"errors"
-	"time"
-	//"expvar"
 	"context"
 	"fmt"
 	"io"
@@ -14,7 +12,6 @@ import (
 	"sync"
 	"sync/atomic"
 
-	//"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/tracing"
@@ -298,15 +295,6 @@ func (s *Service) handleConn(conn net.Conn) {
 			atomic.AddInt64(&s.stats.SeriesCardinalityReq, 1)
 			s.processSeriesCardinalityRequest(conn)
 			return
-		case deleteSeriesRequestMessage:
-			s.processDeleteSeriesRequest(conn)
-			return
-		case deleteDatabaseRequestMessage:
-			s.processDeleteDatabaseRequest(conn)
-			return
-		case deleteMeasurementRequestMessage:
-			s.processDeleteMeasurementRequest(conn)
-			return
 		case iteratorCostRequestMessage:
 			atomic.AddInt64(&s.stats.IteratorCostReq, 1)
 			s.processIteratorCostRequest(conn)
@@ -449,66 +437,6 @@ func (s *Service) processIteratorCostRequest(conn net.Conn) {
 	if err := EncodeTLV(conn, iteratorCostResponseMessage, &resp); err != nil {
 		atomic.AddInt64(&s.stats.IteratorCostFail, 1)
 		s.Logger.Error("processIteratorCostRequest EncodeTLV fail", zap.Error(err))
-	}
-}
-
-func (s *Service) processDeleteMeasurementRequest(conn net.Conn) {
-	defer conn.Close()
-	var resp DeleteMeasurementResponse
-	if err := func() error {
-		var req DeleteMeasurementRequest
-		if err := DecodeLV(conn, &req); err != nil {
-			return err
-		}
-		return s.TSDBStore.DeleteMeasurement(req.Database, req.Name)
-	}(); err != nil {
-		s.Logger.Error("processDeleteMeasurementRequest fail", zap.Error(err))
-		resp.Err = err.Error()
-	}
-
-	if err := EncodeTLV(conn, deleteMeasurementResponseMessage, &resp); err != nil {
-		s.Logger.Error("processDeleteMeasurementRequest EncodeTLV fail", zap.Error(err))
-	}
-}
-
-func (s *Service) processDeleteDatabaseRequest(conn net.Conn) {
-	defer conn.Close()
-	var resp DeleteDatabaseResponse
-	if err := func() error {
-		var req DeleteDatabaseRequest
-		if err := DecodeLV(conn, &req); err != nil {
-			return err
-		}
-		return s.TSDBStore.DeleteDatabase(req.Database)
-	}(); err != nil {
-		s.Logger.Error("processDeleteDatabaseRequest fail", zap.Error(err))
-		resp.Err = err.Error()
-	}
-
-	if err := EncodeTLV(conn, deleteDatabaseResponseMessage, &resp); err != nil {
-		s.Logger.Error("processDeleteDatabaseRequest EncodeTLV", zap.Error(err))
-	}
-}
-
-func (s *Service) processDeleteSeriesRequest(conn net.Conn) {
-	defer conn.Close()
-	var resp DeleteSeriesResponse
-	if err := func() error {
-		var req DeleteSeriesRequest
-		if err := DecodeLV(conn, &req); err != nil {
-			return err
-		}
-
-		cond := influxql.Reduce(req.Cond, &influxql.NowValuer{Now: time.Now().UTC()})
-		err := s.TSDBStore.DeleteSeries(req.Database, req.Sources, cond)
-		return err
-	}(); err != nil {
-		s.Logger.Error("processDeleteSeriesRequest fail", zap.Error(err))
-		resp.Err = err.Error()
-	}
-
-	if err := EncodeTLV(conn, deleteSeriesResponseMessage, &resp); err != nil {
-		s.Logger.Error("processDeleteSeriesRequest EncodeTLV fail", zap.Error(err))
 	}
 }
 
