@@ -79,17 +79,7 @@ func TestCreateShardGroup(t *testing.T) {
 		t.Fatalf("expected err: %s, got: %s", imeta.ErrNodeNotFound, err)
 	}
 
-	host := "127.0.0.1:8080"
-	tcpHost := "127.0.0.1:8081"
-	if err := data.CreateDataNode(host, tcpHost); err != nil {
-		t.Fatalf("unexpected err: %s", err)
-	}
-
-	host = "127.0.0.1:9080"
-	tcpHost = "127.0.0.1:9081"
-	if err := data.CreateDataNode(host, tcpHost); err != nil {
-		t.Fatalf("unexpected err: %s", err)
-	}
+	createTwoDataNode(data)
 
 	if err := data.CreateShardGroup(name, policy, time.Now()); err != nil {
 		t.Fatalf("unexpected err: %s", err)
@@ -108,9 +98,75 @@ func TestCreateShardGroup(t *testing.T) {
 		}
 	}
 
-	//TODO: replicaN>1
+	replicaN := 2
+	duration := time.Hour
+	spec := meta.RetentionPolicySpec{
+		Name:               "rp",
+		ReplicaN:           &replicaN,
+		Duration:           &duration,
+		ShardGroupDuration: time.Minute,
+	}
+	data.CreateRetentionPolicy(name, spec.NewRetentionPolicyInfo(), true)
+	data.CreateShardGroup(name, "rp", time.Now())
+
+	rp = data.Database(name).RetentionPolicy("rp")
+	sgi = rp.ShardGroups[0]
+	if len(sgi.Shards) != 1 {
+		t.Fatalf("unexpected 1 shards, got: %d", len(sgi.Shards))
+	}
+
+	owners := sgi.Shards[0].Owners
+	if len(owners) != 2 {
+		t.Fatalf("unexpected shard: %+v", sgi.Shards[0])
+	}
+
+	for _, o := range owners {
+		if o.NodeID != 1 && o.NodeID != 2 {
+			t.Fatalf("unexpected owner: %+v", o)
+		}
+	}
 }
 
 func TestDeleteDataNode(t *testing.T) {
-	//TODO
+	data := newData()
+	name := "testdb"
+	policy := "rp"
+	data.CreateDatabase(name)
+	createTwoDataNode(data)
+
+	replicaN := 2
+	duration := time.Hour
+	spec := meta.RetentionPolicySpec{
+		Name:               policy,
+		ReplicaN:           &replicaN,
+		Duration:           &duration,
+		ShardGroupDuration: time.Minute,
+	}
+	data.CreateRetentionPolicy(name, spec.NewRetentionPolicyInfo(), true)
+	data.CreateShardGroup(name, policy, time.Now())
+
+	data.DeleteDataNode(1)
+
+	rp := data.Database(name).RetentionPolicy("rp")
+	sgi := rp.ShardGroups[0]
+
+	owners := sgi.Shards[0].Owners
+	if len(owners) != 1 {
+		t.Fatalf("unexpected shard: %+v", sgi.Shards[0])
+	}
+
+	o := owners[0]
+	if o.NodeID != 2 {
+		t.Fatalf("unexpected owner: %+v", o)
+	}
+}
+
+func createTwoDataNode(data *imeta.Data) {
+	host := "127.0.0.1:8080"
+	tcpHost := "127.0.0.1:8081"
+	data.CreateDataNode(host, tcpHost)
+
+	host = "127.0.0.1:9080"
+	tcpHost = "127.0.0.1:9081"
+	data.CreateDataNode(host, tcpHost)
 }
