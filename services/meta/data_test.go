@@ -2,6 +2,7 @@ package meta_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/influxdata/influxdb/services/meta"
 
@@ -68,7 +69,46 @@ func TestCreateAndDeleteMetaNode(t *testing.T) {
 }
 
 func TestCreateShardGroup(t *testing.T) {
-	//TODO
+	data := newData()
+	name := "testdb"
+	policy := meta.DefaultRetentionPolicyName
+	data.CreateDatabase(name)
+	data.CreateRetentionPolicy(name, meta.DefaultRetentionPolicyInfo(), true)
+
+	if err := data.CreateShardGroup(name, policy, time.Now()); err != imeta.ErrNodeNotFound {
+		t.Fatalf("expected err: %s, got: %s", imeta.ErrNodeNotFound, err)
+	}
+
+	host := "127.0.0.1:8080"
+	tcpHost := "127.0.0.1:8081"
+	if err := data.CreateDataNode(host, tcpHost); err != nil {
+		t.Fatalf("unexpected err: %s", err)
+	}
+
+	host = "127.0.0.1:9080"
+	tcpHost = "127.0.0.1:9081"
+	if err := data.CreateDataNode(host, tcpHost); err != nil {
+		t.Fatalf("unexpected err: %s", err)
+	}
+
+	if err := data.CreateShardGroup(name, policy, time.Now()); err != nil {
+		t.Fatalf("unexpected err: %s", err)
+	}
+
+	rp := data.Database(name).RetentionPolicy(policy)
+	sgi := rp.ShardGroups[0]
+	if len(sgi.Shards) != 2 {
+		t.Fatalf("unexpected 2 shards, got: %d", len(sgi.Shards))
+	}
+
+	for _, sh := range sgi.Shards {
+		o := sh.Owners[0]
+		if len(sh.Owners) != 1 || o.NodeID != 1 && o.NodeID != 2 {
+			t.Fatalf("unexpected shard: %+v", sh)
+		}
+	}
+
+	//TODO: replicaN>1
 }
 
 func TestDeleteDataNode(t *testing.T) {
