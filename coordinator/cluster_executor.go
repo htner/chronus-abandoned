@@ -2,10 +2,8 @@ package coordinator
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"math/rand"
-	"net"
 	"sort"
 	"sync"
 	"time"
@@ -33,7 +31,7 @@ func NewClusterExecutor(n *influxdb.Node, s TSDBStore, m MetaClient, Config Conf
 		Node:       n,
 		TSDBStore:  s,
 		MetaClient: m,
-		RemoteNodeExecutor: &RemoteNodeExecutorImpl{
+		RemoteNodeExecutor: &remoteNodeExecutor{
 			MetaClient:         m,
 			DailTimeout:        time.Duration(Config.DailTimeout),
 			ShardReaderTimeout: time.Duration(Config.ShardReaderTimeout),
@@ -45,528 +43,6 @@ func NewClusterExecutor(n *influxdb.Node, s TSDBStore, m MetaClient, Config Conf
 
 func (me *ClusterExecutor) WithLogger(log *zap.Logger) {
 	me.Logger = log.With(zap.String("service", "ClusterExecutor"))
-}
-
-type RemoteNodeExecutor interface {
-	TagKeys(nodeId uint64, ShardIDs []uint64, cond influxql.Expr) ([]tsdb.TagKeys, error)
-	TagValues(nodeId uint64, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagValues, error)
-	MeasurementNames(nodeId uint64, database string, cond influxql.Expr) ([][]byte, error)
-	SeriesCardinality(nodeId uint64, database string) (int64, error)
-	ExecuteStatement(nodeId uint64, stmt influxql.Statement, database string) error
-	FieldDimensions(nodeId uint64, m *influxql.Measurement, shardIds []uint64) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error)
-	IteratorCost(nodeId uint64, m *influxql.Measurement, opt query.IteratorOptions, shardIds []uint64) (query.IteratorCost, error)
-	MapType(nodeId uint64, m *influxql.Measurement, field string, shardIds []uint64) (influxql.DataType, error)
-	CreateIterator(nodeId uint64, ctx context.Context, m *influxql.Measurement, opt query.IteratorOptions, shardIds []uint64) (query.Iterator, error)
-	TaskManagerStatement(nodeId uint64, stmt influxql.Statement) (*query.Result, error)
-}
-
-type RemoteNodeExecutorImpl struct {
-	MetaClient         MetaClient
-	DailTimeout        time.Duration
-	ShardReaderTimeout time.Duration
-	ClusterTracing     bool
-}
-
-func (me *RemoteNodeExecutorImpl) CreateIterator(nodeId uint64, ctx context.Context, m *influxql.Measurement, opt query.IteratorOptions, shardIds []uint64) (query.Iterator, error) {
-	dialer := &NodeDialer{
-		MetaClient: me.MetaClient,
-		Timeout:    me.ShardReaderTimeout,
-	}
-
-	conn, err := dialer.DialNode(nodeId)
-	if err != nil {
-		return nil, err
-	}
-	//no need here defer conn.Close()
-
-	var resp CreateIteratorResponse
-	if err := func() error {
-		var spanCtx *tracing.SpanContext
-		span := tracing.SpanFromContext(ctx)
-		if span != nil {
-			spanCtx = new(tracing.SpanContext)
-			*spanCtx = span.Context()
-		}
-		if err := EncodeTLV(conn, createIteratorRequestMessage, &CreateIteratorRequest{
-			ShardIDs:    shardIds,
-			Measurement: *m, //TODO:改为Sources
-			Opt:         opt,
-			SpanContex:  spanCtx,
-		}); err != nil {
-			return err
-		}
-
-		// Read the response.
-		if _, err := DecodeTLV(conn, &resp); err != nil {
-			return err
-		} else if resp.Err != nil {
-			return err
-		}
-
-		return nil
-	}(); err != nil {
-		conn.Close()
-		return nil, err
-	}
-
-	if resp.DataType == influxql.Unknown {
-		return nil, nil
-	}
-
-	stats := query.IteratorStats{SeriesN: resp.SeriesN}
-	//conn.Close will be invoked when iterator.Close
-	itr := query.NewReaderIterator(ctx, conn, resp.DataType, stats)
-	return itr, nil
-}
-
-func (me *RemoteNodeExecutorImpl) MapType(nodeId uint64, m *influxql.Measurement, field string, shardIds []uint64) (influxql.DataType, error) {
-	dialer := &NodeDialer{
-		MetaClient: me.MetaClient,
-		Timeout:    me.DailTimeout,
-	}
-
-	conn, err := dialer.DialNode(nodeId)
-	if err != nil {
-		return influxql.Unknown, err
-	}
-	defer conn.Close()
-
-	measurement := *m
-	if measurement.SystemIterator != "" {
-		measurement.Name = measurement.SystemIterator
-	}
-
-	var resp MapTypeResponse
-	if err := func() error {
-		if err := EncodeTLV(conn, mapTypeRequestMessage, &MapTypeRequest{
-			Sources:  influxql.Sources([]influxql.Source{&measurement}),
-			Field:    field,
-			ShardIDs: shardIds,
-		}); err != nil {
-			return err
-		}
-
-		if _, err := DecodeTLV(conn, &resp); err != nil {
-			return err
-		} else if resp.Err != "" {
-			return errors.New(resp.Err)
-		}
-
-		return nil
-	}(); err != nil {
-		return influxql.Unknown, err
-	}
-
-	return resp.DataType, nil
-}
-
-func (me *RemoteNodeExecutorImpl) IteratorCost(nodeId uint64, m *influxql.Measurement, opt query.IteratorOptions, shardIds []uint64) (query.IteratorCost, error) {
-	dialer := &NodeDialer{
-		MetaClient: me.MetaClient,
-		Timeout:    me.DailTimeout,
-	}
-
-	conn, err := dialer.DialNode(nodeId)
-	if err != nil {
-		return query.IteratorCost{}, err
-	}
-	defer conn.Close()
-
-	var resp IteratorCostResponse
-	if err := func() error {
-		if err := EncodeTLV(conn, iteratorCostRequestMessage, &IteratorCostRequest{
-			Sources:  influxql.Sources([]influxql.Source{m}),
-			Opt:      opt,
-			ShardIDs: shardIds,
-		}); err != nil {
-			return err
-		}
-
-		if _, err := DecodeTLV(conn, &resp); err != nil {
-			return err
-		} else if resp.Err != "" {
-			return errors.New(resp.Err)
-		}
-
-		return nil
-	}(); err != nil {
-		return query.IteratorCost{}, err
-	}
-
-	return resp.Cost, nil
-}
-
-func (me *RemoteNodeExecutorImpl) FieldDimensions(nodeId uint64, m *influxql.Measurement, shardIds []uint64) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error) {
-	dialer := &NodeDialer{
-		MetaClient: me.MetaClient,
-		Timeout:    me.DailTimeout,
-	}
-
-	conn, err := dialer.DialNode(nodeId)
-	if err != nil {
-		return nil, nil, err
-	}
-	defer conn.Close()
-
-	var resp FieldDimensionsResponse
-	if err := func() error {
-		var req FieldDimensionsRequest
-		req.ShardIDs = shardIds
-		req.Sources = influxql.Sources([]influxql.Source{m})
-		if err := EncodeTLV(conn, fieldDimensionsRequestMessage, &req); err != nil {
-			return err
-		}
-
-		if _, err := DecodeTLV(conn, &resp); err != nil {
-			return err
-		} else if resp.Err != nil {
-			return resp.Err
-		}
-
-		return nil
-	}(); err != nil {
-		return nil, nil, err
-	}
-
-	return resp.Fields, resp.Dimensions, nil
-}
-
-func (me *RemoteNodeExecutorImpl) TaskManagerStatement(nodeId uint64, stmt influxql.Statement) (*query.Result, error) {
-	dialer := &NodeDialer{
-		MetaClient: me.MetaClient,
-		Timeout:    me.DailTimeout,
-	}
-
-	conn, err := dialer.DialNode(nodeId)
-	if err != nil {
-		return nil, err
-	}
-	defer conn.Close()
-
-	var resp TaskManagerStatementResponse
-	if err := func() error {
-		var req TaskManagerStatementRequest
-		req.SetStatement(stmt.String())
-		req.SetDatabase("")
-		if err := EncodeTLV(conn, executeTaskManagerRequestMessage, &req); err != nil {
-			return err
-		}
-
-		if _, err := DecodeTLV(conn, &resp); err != nil {
-			return err
-		} else if resp.Err != "" {
-			return errors.New(resp.Err)
-		}
-
-		return nil
-	}(); err != nil {
-		return nil, err
-	}
-
-	result := &query.Result{}
-	*result = resp.Result
-	return result, nil
-}
-
-func (me *RemoteNodeExecutorImpl) ExecuteStatement(nodeId uint64, stmt influxql.Statement, database string) error {
-	dialer := &NodeDialer{
-		MetaClient: me.MetaClient,
-		Timeout:    me.DailTimeout,
-	}
-
-	conn, err := dialer.DialNode(nodeId)
-	if err != nil {
-		return err
-	}
-	defer conn.Close()
-
-	if err := func() error {
-		var req ExecuteStatementRequest
-		req.SetStatement(stmt.String())
-		req.SetDatabase(database)
-		if err := EncodeTLV(conn, executeStatementRequestMessage, &req); err != nil {
-			return err
-		}
-
-		var resp ExecuteStatementResponse
-		if _, err := DecodeTLV(conn, &resp); err != nil {
-			return err
-		} else if resp.Code() != 0 {
-			return errors.New(resp.Message())
-		}
-
-		return nil
-	}(); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (me *RemoteNodeExecutorImpl) SeriesCardinality(nodeId uint64, database string) (int64, error) {
-	dialer := &NodeDialer{
-		MetaClient: me.MetaClient,
-		Timeout:    me.DailTimeout,
-	}
-
-	conn, err := dialer.DialNode(nodeId)
-	if err != nil {
-		return -1, err
-	}
-	defer conn.Close()
-
-	var n int64
-	if err := func() error {
-		if err := EncodeTLV(conn, seriesCardinalityRequestMessage, &SeriesCardinalityRequest{
-			Database: database,
-		}); err != nil {
-			return err
-		}
-
-		var resp SeriesCardinalityResponse
-		if _, err := DecodeTLV(conn, &resp); err != nil {
-			return err
-		} else if resp.Err != "" {
-			return errors.New(resp.Err)
-		}
-
-		n = resp.N
-		return nil
-	}(); err != nil {
-		return -1, err
-	}
-
-	return n, nil
-}
-
-func (me *RemoteNodeExecutorImpl) MeasurementNames(nodeId uint64, database string, cond influxql.Expr) ([][]byte, error) {
-	dialer := &NodeDialer{
-		MetaClient: me.MetaClient,
-		Timeout:    me.DailTimeout,
-	}
-
-	conn, err := dialer.DialNode(nodeId)
-	if err != nil {
-		return nil, err
-	}
-	defer conn.Close()
-
-	var names [][]byte
-	if err := func() error {
-		if err := EncodeTLV(conn, measurementNamesRequestMessage, &MeasurementNamesRequest{
-			Database: database,
-			Cond:     cond,
-		}); err != nil {
-			return err
-		}
-
-		var resp MeasurementNamesResponse
-		if _, err := DecodeTLV(conn, &resp); err != nil {
-			return err
-		} else if resp.Err != "" {
-			return errors.New(resp.Err)
-		}
-
-		names = resp.Names
-		return nil
-	}(); err != nil {
-		return nil, err
-	}
-
-	return names, nil
-}
-
-func (me *RemoteNodeExecutorImpl) TagValues(nodeId uint64, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagValues, error) {
-	dialer := &NodeDialer{
-		MetaClient: me.MetaClient,
-		Timeout:    me.DailTimeout,
-	}
-
-	conn, err := dialer.DialNode(nodeId)
-	if err != nil {
-		return nil, err
-	}
-	defer conn.Close()
-
-	var tagValues []tsdb.TagValues
-	if err := func() error {
-		if err := EncodeTLV(conn, tagValuesRequestMessage, &TagValuesRequest{
-			TagKeysRequest{
-				ShardIDs: shardIDs,
-				Cond:     cond,
-			},
-		}); err != nil {
-			return err
-		}
-
-		var resp TagValuesResponse
-		if _, err := DecodeTLV(conn, &resp); err != nil {
-			return err
-		} else if resp.Err != "" {
-			return errors.New(resp.Err)
-		}
-
-		tagValues = resp.TagValues
-		return nil
-	}(); err != nil {
-		return nil, err
-	}
-
-	return tagValues, nil
-}
-
-func (me *RemoteNodeExecutorImpl) TagKeys(nodeId uint64, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagKeys, error) {
-	dialer := &NodeDialer{
-		MetaClient: me.MetaClient,
-		Timeout:    me.DailTimeout,
-	}
-
-	conn, err := dialer.DialNode(nodeId)
-	if err != nil {
-		return nil, err
-	}
-
-	defer conn.Close()
-
-	var tagKeys []tsdb.TagKeys
-	if err := func() error {
-		if err := EncodeTLV(conn, tagKeysRequestMessage, &TagKeysRequest{
-			ShardIDs: shardIDs,
-			Cond:     cond,
-		}); err != nil {
-			return err
-		}
-
-		var resp TagKeysResponse
-		if _, err := DecodeTLV(conn, &resp); err != nil {
-			return err
-		} else if resp.Err != "" {
-			return errors.New(resp.Err)
-		}
-
-		tagKeys = resp.TagKeys
-		return nil
-	}(); err != nil {
-		return nil, err
-	}
-
-	return tagKeys, nil
-}
-
-type NodeIds []uint64
-
-func NewNodeIdsByNodes(nodeInfos []meta.NodeInfo) NodeIds {
-	var ids []uint64
-	for _, ni := range nodeInfos {
-		ids = append(ids, ni.ID)
-	}
-	return NodeIds(ids)
-}
-
-//TODO:取个达意的名字
-func NewNodeIdsByShards(Shards []meta.ShardInfo) NodeIds {
-	m := make(map[uint64]struct{})
-	for _, si := range Shards {
-		for _, owner := range si.Owners {
-			m[owner.NodeID] = struct{}{}
-		}
-	}
-
-	nodes := make([]uint64, 0, len(m))
-	for n, _ := range m {
-		nodes = append(nodes, n)
-	}
-	return nodes
-}
-
-func (me NodeIds) Apply(fn func(nodeId uint64)) {
-	for _, nodeID := range me {
-		fn(nodeID)
-	}
-}
-
-type Node2ShardIDs map[uint64][]uint64
-
-//TODO: 只选择活跃的Node
-func NewNode2ShardIDs(mc MetaClient, localNode *influxdb.Node, shards []meta.ShardInfo) Node2ShardIDs {
-	allNodes := make([]uint64, 0)
-	for _, si := range shards {
-		if si.OwnedBy(localNode.ID) {
-			continue
-		}
-
-		for _, owner := range si.Owners {
-			allNodes = append(allNodes, owner.NodeID)
-		}
-	}
-
-	//选出 active node
-	activeNodes := make(map[uint64]struct{})
-	var wg sync.WaitGroup
-	var mutex sync.Mutex
-	for _, id := range allNodes {
-		wg.Add(1)
-		go func(id uint64) {
-			defer wg.Add(-1)
-			dialer := &NodeDialer{
-				MetaClient: mc,
-				Timeout:    100 * time.Millisecond, //TODO: from config
-			}
-
-			conn, err := dialer.DialNode(id)
-			if err != nil {
-				return
-			}
-			defer conn.Close()
-			mutex.Lock()
-			activeNodes[id] = struct{}{}
-			mutex.Unlock()
-		}(id)
-	}
-
-	wg.Wait()
-
-	shardIDsByNodeID := make(map[uint64][]uint64)
-	for _, si := range shards {
-		var nodeID uint64
-		if si.OwnedBy(localNode.ID) {
-			nodeID = localNode.ID
-		} else if len(si.Owners) > 0 {
-			nodeID = si.Owners[rand.Intn(len(si.Owners))].NodeID
-			if _, ok := activeNodes[nodeID]; !ok {
-				//利用map的顺序不确定特性，随机选一个active的owner
-				randomOwners := make(map[uint64]struct{})
-				for _, owner := range si.Owners {
-					randomOwners[owner.NodeID] = struct{}{}
-				}
-				for id, _ := range randomOwners {
-					if _, ok := activeNodes[id]; ok {
-						nodeID = id
-						break
-					}
-				}
-			}
-		} else {
-			continue
-		}
-		shardIDsByNodeID[nodeID] = append(shardIDsByNodeID[nodeID], si.ID)
-	}
-
-	return shardIDsByNodeID
-}
-
-type uint64Slice []uint64
-
-func (a uint64Slice) Len() int           { return len(a) }
-func (a uint64Slice) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a uint64Slice) Less(i, j int) bool { return a[i] < a[j] }
-
-func (me Node2ShardIDs) Apply(fn func(nodeId uint64, shardIDs []uint64)) {
-	for nodeID, shardIDs := range me {
-		// Sort shard IDs so we get more predicable execution.
-		sort.Sort(uint64Slice(shardIDs))
-		fn(nodeID, shardIDs)
-	}
 }
 
 func (me *ClusterExecutor) TaskManagerStatement(tm *query.TaskManager, stmt influxql.Statement, ctx *query.ExecutionContext) error {
@@ -1316,30 +792,118 @@ func (a StringSlice) Len() int           { return len(a) }
 func (a StringSlice) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a StringSlice) Less(i, j int) bool { return a[i] < a[j] }
 
-// NodeDialer dials connections to a given node.
-type NodeDialer struct {
-	MetaClient MetaClient
-	Timeout    time.Duration
+type NodeIds []uint64
+
+func NewNodeIdsByNodes(nodeInfos []meta.NodeInfo) NodeIds {
+	var ids []uint64
+	for _, ni := range nodeInfos {
+		ids = append(ids, ni.ID)
+	}
+	return NodeIds(ids)
 }
 
-// DialNode returns a connection to a node.
-func (d *NodeDialer) DialNode(nodeID uint64) (net.Conn, error) {
-	ni, err := d.MetaClient.DataNode(nodeID)
-	if err != nil {
-		return nil, err
+//TODO:取个达意的名字
+func NewNodeIdsByShards(Shards []meta.ShardInfo) NodeIds {
+	m := make(map[uint64]struct{})
+	for _, si := range Shards {
+		for _, owner := range si.Owners {
+			m[owner.NodeID] = struct{}{}
+		}
 	}
 
-	conn, err := net.Dial("tcp", ni.TCPHost)
-	if err != nil {
-		return nil, err
+	nodes := make([]uint64, 0, len(m))
+	for n, _ := range m {
+		nodes = append(nodes, n)
 	}
-	conn.SetDeadline(time.Now().Add(d.Timeout))
+	return nodes
+}
 
-	// Write the cluster multiplexing header byte
-	if _, err := conn.Write([]byte{MuxHeader}); err != nil {
-		conn.Close()
-		return nil, err
+func (me NodeIds) Apply(fn func(nodeId uint64)) {
+	for _, nodeID := range me {
+		fn(nodeID)
+	}
+}
+
+type Node2ShardIDs map[uint64][]uint64
+
+//TODO: 只选择活跃的Node
+func NewNode2ShardIDs(mc MetaClient, localNode *influxdb.Node, shards []meta.ShardInfo) Node2ShardIDs {
+	allNodes := make([]uint64, 0)
+	for _, si := range shards {
+		if si.OwnedBy(localNode.ID) {
+			continue
+		}
+
+		for _, owner := range si.Owners {
+			allNodes = append(allNodes, owner.NodeID)
+		}
 	}
 
-	return conn, nil
+	//选出 active node
+	activeNodes := make(map[uint64]struct{})
+	var wg sync.WaitGroup
+	var mutex sync.Mutex
+	for _, id := range allNodes {
+		wg.Add(1)
+		go func(id uint64) {
+			defer wg.Add(-1)
+			dialer := &NodeDialer{
+				MetaClient: mc,
+				Timeout:    100 * time.Millisecond, //TODO: from config
+			}
+
+			conn, err := dialer.DialNode(id)
+			if err != nil {
+				return
+			}
+			defer conn.Close()
+			mutex.Lock()
+			activeNodes[id] = struct{}{}
+			mutex.Unlock()
+		}(id)
+	}
+
+	wg.Wait()
+
+	shardIDsByNodeID := make(map[uint64][]uint64)
+	for _, si := range shards {
+		var nodeID uint64
+		if si.OwnedBy(localNode.ID) {
+			nodeID = localNode.ID
+		} else if len(si.Owners) > 0 {
+			nodeID = si.Owners[rand.Intn(len(si.Owners))].NodeID
+			if _, ok := activeNodes[nodeID]; !ok {
+				//利用map的顺序不确定特性，随机选一个active的owner
+				randomOwners := make(map[uint64]struct{})
+				for _, owner := range si.Owners {
+					randomOwners[owner.NodeID] = struct{}{}
+				}
+				for id, _ := range randomOwners {
+					if _, ok := activeNodes[id]; ok {
+						nodeID = id
+						break
+					}
+				}
+			}
+		} else {
+			continue
+		}
+		shardIDsByNodeID[nodeID] = append(shardIDsByNodeID[nodeID], si.ID)
+	}
+
+	return shardIDsByNodeID
+}
+
+type uint64Slice []uint64
+
+func (a uint64Slice) Len() int           { return len(a) }
+func (a uint64Slice) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a uint64Slice) Less(i, j int) bool { return a[i] < a[j] }
+
+func (me Node2ShardIDs) Apply(fn func(nodeId uint64, shardIDs []uint64)) {
+	for nodeID, shardIDs := range me {
+		// Sort shard IDs so we get more predicable execution.
+		sort.Sort(uint64Slice(shardIDs))
+		fn(nodeID, shardIDs)
+	}
 }
