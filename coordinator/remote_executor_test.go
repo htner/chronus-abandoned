@@ -30,5 +30,3 @@ func TestRemoteNodeExecuterCreateIterator(t *testing.T) {
 
 func TestRemoteNodeExecuterTaskManagerStatement(t *testing.T) {
 }
-
-

@@ -1,17 +1,17 @@
 package coordinator
 
 import (
+	"context"
 	"encoding"
 	"encoding/binary"
 	"errors"
-	"context"
 	"fmt"
 	"io"
 	"net"
 	"strings"
 	"sync"
 	"sync/atomic"
-    "time"
+	"time"
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/models"
