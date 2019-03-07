@@ -20,8 +20,12 @@ import (
 
 type ClusterExecutor struct {
 	TSDBStore
-	Node               *influxdb.Node
-	MetaClient         MetaClient
+	Node       *influxdb.Node
+	MetaClient MetaClient
+
+	// TaskManager holds the StatementExecutor that handles task-related commands.
+	TaskManager query.StatementExecutor
+
 	RemoteNodeExecutor RemoteNodeExecutor
 	Logger             *zap.Logger
 }
@@ -45,7 +49,7 @@ func (me *ClusterExecutor) WithLogger(log *zap.Logger) {
 	me.Logger = log.With(zap.String("service", "ClusterExecutor"))
 }
 
-func (me *ClusterExecutor) TaskManagerStatement(tm *query.TaskManager, stmt influxql.Statement, ctx *query.ExecutionContext) error {
+func (me *ClusterExecutor) ExecuteStatement(stmt influxql.Statement, ctx *query.ExecutionContext) error {
 	type Result struct {
 		qr  *query.Result
 		err error
@@ -86,7 +90,7 @@ func (me *ClusterExecutor) TaskManagerStatement(tm *query.TaskManager, stmt infl
 					Context: context.Background(),
 					Results: make(chan *query.Result, 1),
 				}
-				err = tm.ExecuteStatement(stmt, recvCtx)
+				err = me.TaskManager.ExecuteStatement(stmt, recvCtx)
 				if err == nil {
 					qr = <-recvCtx.Results
 				}
@@ -146,64 +150,6 @@ func (me *ClusterExecutor) TaskManagerStatement(tm *query.TaskManager, stmt infl
 		return err
 	}
 	ctx.Send(&query.Result{Series: models.Rows{row}})
-	return nil
-}
-
-func (me *ClusterExecutor) ExecuteStatement(stmt influxql.Statement, database string) error {
-	type Result struct {
-		err error
-	}
-
-	nodeInfos, err := me.MetaClient.DataNodes()
-	if err != nil {
-		return err
-	}
-
-	nodes := NewNodeIdsByNodes(nodeInfos)
-	results := make(map[uint64]*Result)
-
-	var mutex sync.Mutex
-	var wg sync.WaitGroup
-	fn := func(nodeId uint64) {
-		wg.Add(1)
-		go func() {
-			defer wg.Add(-1)
-
-			var err error
-			if nodeId == me.Node.ID {
-				switch t := stmt.(type) {
-				case *influxql.DropShardStatement:
-					err = me.TSDBStore.DeleteShard(t.ID)
-				case *influxql.DropRetentionPolicyStatement:
-					err = me.TSDBStore.DeleteRetentionPolicy(t.Database, t.Name)
-				case *influxql.DropDatabaseStatement:
-					err = me.TSDBStore.DeleteDatabase(t.Name)
-				case *influxql.DropMeasurementStatement:
-					err = me.TSDBStore.DeleteMeasurement(database, t.Name)
-				case *influxql.DropSeriesStatement:
-					err = me.TSDBStore.DeleteSeries(database, t.Sources, t.Condition)
-				default:
-					err = query.ErrInvalidQuery
-				}
-			} else {
-				err = me.RemoteNodeExecutor.ExecuteStatement(nodeId, stmt, database)
-			}
-
-			mutex.Lock()
-			results[nodeId] = &Result{err: err}
-			mutex.Unlock()
-			return
-		}()
-	}
-
-	nodes.Apply(fn)
-	wg.Wait()
-
-	for _, r := range results {
-		if r.err != nil {
-			return r.err
-		}
-	}
 	return nil
 }
 

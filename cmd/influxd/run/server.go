@@ -268,7 +268,7 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 	s.QueryExecutor = query.NewExecutor()
 	s.QueryExecutor.StatementExecutor = &influxdb_coordinator.StatementExecutor{
 		MetaClient:  s.ClusterMetaClient,
-		TaskManager: s.QueryExecutor.TaskManager,
+		TaskManager: clusterExecutor,
 		TSDBStore:   clusterExecutor,
 		ShardMapper: &coordinator.ClusterShardMapper{
 			MetaClient:      s.ClusterMetaClient,
@@ -284,6 +284,8 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 	s.QueryExecutor.TaskManager.QueryTimeout = time.Duration(c.Coordinator.QueryTimeout)
 	s.QueryExecutor.TaskManager.LogQueriesAfter = time.Duration(c.Coordinator.LogQueriesAfter)
 	s.QueryExecutor.TaskManager.MaxConcurrentQueries = c.Coordinator.MaxConcurrentQueries
+
+	clusterExecutor.TaskManager = s.QueryExecutor.TaskManager
 
 	// Initialize the monitor
 	s.Monitor.Version = s.buildInfo.Version

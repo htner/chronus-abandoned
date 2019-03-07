@@ -20,7 +20,6 @@ type RemoteNodeExecutor interface {
 	DeleteSeries(nodeId uint64, database string, sources []influxql.Source, condition influxql.Expr) error
 	DeleteDatabase(nodeId uint64, database string) error
 	DeleteMeasurement(nodeId uint64, database, name string) error
-	ExecuteStatement(nodeId uint64, stmt influxql.Statement, database string) error
 	FieldDimensions(nodeId uint64, m *influxql.Measurement, shardIds []uint64) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error)
 	IteratorCost(nodeId uint64, m *influxql.Measurement, opt query.IteratorOptions, shardIds []uint64) (query.IteratorCost, error)
 	MapType(nodeId uint64, m *influxql.Measurement, field string, shardIds []uint64) (influxql.DataType, error)
@@ -234,41 +233,6 @@ func (me *remoteNodeExecutor) TaskManagerStatement(nodeId uint64, stmt influxql.
 	result := &query.Result{}
 	*result = resp.Result
 	return result, nil
-}
-
-func (me *remoteNodeExecutor) ExecuteStatement(nodeId uint64, stmt influxql.Statement, database string) error {
-	dialer := &NodeDialer{
-		MetaClient: me.MetaClient,
-		Timeout:    me.DailTimeout,
-	}
-
-	conn, err := dialer.DialNode(nodeId)
-	if err != nil {
-		return err
-	}
-	defer conn.Close()
-
-	if err := func() error {
-		var req ExecuteStatementRequest
-		req.SetStatement(stmt.String())
-		req.SetDatabase(database)
-		if err := EncodeTLV(conn, executeStatementRequestMessage, &req); err != nil {
-			return err
-		}
-
-		var resp ExecuteStatementResponse
-		if _, err := DecodeTLV(conn, &resp); err != nil {
-			return err
-		} else if resp.Code() != 0 {
-			return errors.New(resp.Message())
-		}
-
-		return nil
-	}(); err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func (me *remoteNodeExecutor) SeriesCardinality(nodeId uint64, database string) (int64, error) {
