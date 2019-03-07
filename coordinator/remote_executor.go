@@ -17,6 +17,9 @@ type RemoteNodeExecutor interface {
 	TagValues(nodeId uint64, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagValues, error)
 	MeasurementNames(nodeId uint64, database string, cond influxql.Expr) ([][]byte, error)
 	SeriesCardinality(nodeId uint64, database string) (int64, error)
+	DeleteSeries(nodeId uint64, database string, sources []influxql.Source, condition influxql.Expr) error
+	DeleteDatabase(nodeId uint64, database string) error
+	DeleteMeasurement(nodeId uint64, database, name string) error
 	ExecuteStatement(nodeId uint64, stmt influxql.Statement, database string) error
 	FieldDimensions(nodeId uint64, m *influxql.Measurement, shardIds []uint64) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error)
 	IteratorCost(nodeId uint64, m *influxql.Measurement, opt query.IteratorOptions, shardIds []uint64) (query.IteratorCost, error)
@@ -416,6 +419,111 @@ func (me *remoteNodeExecutor) TagKeys(nodeId uint64, shardIDs []uint64, cond inf
 	}
 
 	return tagKeys, nil
+}
+
+func (me *remoteNodeExecutor) DeleteMeasurement(nodeId uint64, database, name string) error {
+	dialer := &NodeDialer{
+		MetaClient: me.MetaClient,
+		Timeout:    me.DailTimeout,
+	}
+
+	conn, err := dialer.DialNode(nodeId)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	if err := func() error {
+		if err := EncodeTLV(conn, deleteMeasurementRequestMessage, &DeleteMeasurementRequest{
+			Database: database,
+			Name:     name,
+		}); err != nil {
+			return err
+		}
+
+		var resp DeleteMeasurementResponse
+		if _, err := DecodeTLV(conn, &resp); err != nil {
+			return err
+		} else if resp.Err != "" {
+			return errors.New(resp.Err)
+		}
+
+		return nil
+	}(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (me *remoteNodeExecutor) DeleteDatabase(nodeId uint64, database string) error {
+	dialer := &NodeDialer{
+		MetaClient: me.MetaClient,
+		Timeout:    me.DailTimeout,
+	}
+
+	conn, err := dialer.DialNode(nodeId)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	if err := func() error {
+		if err := EncodeTLV(conn, deleteDatabaseRequestMessage, &DeleteDatabaseRequest{
+			Database: database,
+		}); err != nil {
+			return err
+		}
+
+		var resp DeleteDatabaseResponse
+		if _, err := DecodeTLV(conn, &resp); err != nil {
+			return err
+		} else if resp.Err != "" {
+			return errors.New(resp.Err)
+		}
+
+		return nil
+	}(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (me *remoteNodeExecutor) DeleteSeries(nodeId uint64, database string, sources []influxql.Source, cond influxql.Expr) error {
+	dialer := &NodeDialer{
+		MetaClient: me.MetaClient,
+		Timeout:    me.DailTimeout,
+	}
+
+	conn, err := dialer.DialNode(nodeId)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	if err := func() error {
+		if err := EncodeTLV(conn, deleteSeriesRequestMessage, &DeleteSeriesRequest{
+			Database: database,
+			Sources:  influxql.Sources(sources),
+			Cond:     cond,
+		}); err != nil {
+			return err
+		}
+
+		var resp DeleteSeriesResponse
+		if _, err := DecodeTLV(conn, &resp); err != nil {
+			return err
+		} else if resp.Err != "" {
+			return errors.New(resp.Err)
+		}
+
+		return nil
+	}(); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // NodeDialer dials connections to a given node.

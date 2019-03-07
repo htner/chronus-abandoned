@@ -786,6 +786,140 @@ func (me *ClusterExecutor) TagKeys(auth query.Authorizer, ids []uint64, cond inf
 	return tagKeys, nil
 }
 
+func (me *ClusterExecutor) DeleteMeasurement(database, name string) error {
+	type Result struct {
+		err error
+	}
+
+	shards, err := DatabaseShards(me.MetaClient, database)
+	if err != nil {
+		return err
+	}
+	nodes := NewNodeIdsByShards(shards)
+	results := make(map[uint64]*Result)
+
+	var mutex sync.Mutex
+	var wg sync.WaitGroup
+	fn := func(nodeId uint64) {
+		wg.Add(1)
+		go func() {
+			defer wg.Add(-1)
+
+			var err error
+			if nodeId == me.Node.ID {
+				err = me.TSDBStore.DeleteMeasurement(database, name)
+			} else {
+				err = me.RemoteNodeExecutor.DeleteMeasurement(nodeId, database, name)
+			}
+
+			mutex.Lock()
+			results[nodeId] = &Result{err: err}
+			mutex.Unlock()
+			return
+		}()
+	}
+
+	nodes.Apply(fn)
+	wg.Wait()
+
+	for _, r := range results {
+		if r.err != nil {
+			return r.err
+		}
+	}
+	return nil
+}
+
+func (me *ClusterExecutor) DeleteDatabase(database string) error {
+	type Result struct {
+		err error
+	}
+
+	shards, err := DatabaseShards(me.MetaClient, database)
+	if err != nil {
+		return err
+	}
+	nodes := NewNodeIdsByShards(shards)
+	results := make(map[uint64]*Result)
+
+	var mutex sync.Mutex
+	var wg sync.WaitGroup
+	fn := func(nodeId uint64) {
+		wg.Add(1)
+		go func() {
+			defer wg.Add(-1)
+
+			var err error
+			if nodeId == me.Node.ID {
+				err = me.TSDBStore.DeleteDatabase(database)
+			} else {
+				err = me.RemoteNodeExecutor.DeleteDatabase(nodeId, database)
+			}
+
+			mutex.Lock()
+			results[nodeId] = &Result{err: err}
+			mutex.Unlock()
+			return
+		}()
+	}
+
+	nodes.Apply(fn)
+	wg.Wait()
+
+	for _, r := range results {
+		if r.err != nil {
+			return r.err
+		}
+	}
+	return nil
+}
+
+func (me *ClusterExecutor) DeleteSeries(database string, sources []influxql.Source, cond influxql.Expr) error {
+	type Result struct {
+		err error
+	}
+
+	shards, err := DatabaseShards(me.MetaClient, database)
+	if err != nil {
+		return err
+	}
+	nodes := NewNodeIdsByShards(shards)
+	results := make(map[uint64]*Result)
+
+	var mutex sync.Mutex
+	var wg sync.WaitGroup
+	fn := func(nodeId uint64) {
+		wg.Add(1)
+		go func() {
+			defer wg.Add(-1)
+
+			var err error
+			if nodeId == me.Node.ID {
+				// Convert "now()" to current time.
+				cond = influxql.Reduce(cond, &influxql.NowValuer{Now: time.Now().UTC()})
+				err = me.TSDBStore.DeleteSeries(database, sources, cond)
+			} else {
+				err = me.RemoteNodeExecutor.DeleteSeries(nodeId, database, sources, cond)
+			}
+
+			mutex.Lock()
+			results[nodeId] = &Result{err: err}
+			mutex.Unlock()
+			return
+		}()
+	}
+
+	nodes.Apply(fn)
+	wg.Wait()
+
+	for _, r := range results {
+		if r.err != nil {
+			return r.err
+		}
+	}
+	return nil
+}
+
 type StringSlice []string
 
 func (a StringSlice) Len() int           { return len(a) }

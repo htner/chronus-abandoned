@@ -37,6 +37,15 @@ const (
 	seriesCardinalityRequestMessage
 	seriesCardinalityResponseMessage
 
+	deleteSeriesRequestMessage
+	deleteSeriesResponseMessage
+
+	deleteDatabaseRequestMessage
+	deleteDatabaseResponseMessage
+
+	deleteMeasurementRequestMessage
+	deleteMeasurementResponseMessage
+
 	iteratorCostRequestMessage
 	iteratorCostResponseMessage
 
