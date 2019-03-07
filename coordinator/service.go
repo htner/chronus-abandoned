@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -199,7 +200,14 @@ func (s *Service) serve() {
 		// Delegate connection handling to a separate goroutine.
 		s.wg.Add(1)
 		go func() {
-			defer s.wg.Done()
+			defer func() {
+				s.wg.Done()
+				if err := recover(); err != nil {
+					buf := debug.Stack()
+					s.Logger.Error("recover from panic", zap.String("stack", string(buf)))
+				}
+			}()
+
 			s.handleConn(conn)
 		}()
 	}
