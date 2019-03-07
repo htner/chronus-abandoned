@@ -19,6 +19,15 @@ func TestClusterExecuterSeriesCardinality(t *testing.T) {
 func TestClusterExecuterFieldDimensions(t *testing.T) {
 }
 
+func TestClusterExecuterDeleteSeries(t *testing.T) {
+}
+
+func TestClusterExecuterDeleteDatabase(t *testing.T) {
+}
+
+func TestClusterExecuterDeleteMeasurement(t *testing.T) {
+}
+
 func TestClusterExecuterIteratorCost(t *testing.T) {
 }
 

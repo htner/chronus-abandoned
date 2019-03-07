@@ -19,6 +19,15 @@ func TestRemoteNodeExecuterSeriesCardinality(t *testing.T) {
 func TestRemoteNodeExecuterFieldDimensions(t *testing.T) {
 }
 
+func TestRemoteNodeExecuterDeleteSeries(t *testing.T) {
+}
+
+func TestRemoteNodeExecuterDeleteDatabase(t *testing.T) {
+}
+
+func TestRemoteNodeExecuterDeleteMeasurement(t *testing.T) {
+}
+
 func TestRemoteNodeExecuterIteratorCost(t *testing.T) {
 }
 
