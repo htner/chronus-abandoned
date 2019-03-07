@@ -21,7 +21,12 @@ import (
 type ClusterExecutor struct {
 	TSDBStore
 	Node       *influxdb.Node
-	MetaClient MetaClient
+	MetaClient interface {
+		DataNodes() ([]meta.NodeInfo, error)
+		DataNode(nodeId uint64) (*meta.NodeInfo, error)
+		ShardOwner(id uint64) (string, string, *meta.ShardGroupInfo)
+		Database(name string) *meta.DatabaseInfo
+	}
 
 	// TaskManager holds the StatementExecutor that handles task-related commands.
 	TaskManager query.StatementExecutor
@@ -201,7 +206,9 @@ func (me *ClusterExecutor) SeriesCardinality(database string) (int64, error) {
 	return sum, nil
 }
 
-func DatabaseShards(c MetaClient, db string) ([]meta.ShardInfo, error) {
+func DatabaseShards(c interface {
+	Database(name string) *meta.DatabaseInfo
+}, db string) ([]meta.ShardInfo, error) {
 	dbInfo := c.Database(db)
 	if dbInfo == nil {
 		return nil, fmt.Errorf("not find database %s", db)
@@ -325,7 +332,7 @@ func (me *ClusterExecutor) TagValues(auth query.Authorizer, ids []uint64, cond i
 	uniq := make(map[string]map[string]tsdb.KeyValue)
 	for nodeId, r := range result {
 		if r.err != nil {
-			return nil, fmt.Errorf("TagKeys fail, nodeId %d, err:%s", nodeId, r.err)
+			return nil, fmt.Errorf("TagValues fail, nodeId %d, err:%s", nodeId, r.err)
 		}
 
 		for _, tagValue := range r.values {
@@ -639,7 +646,9 @@ func (me *ClusterExecutor) FieldDimensions(m *influxql.Measurement, shards []met
 	return fields, dimensions, nil
 }
 
-func GetShardInfoByIds(MetaClient MetaClient, ids []uint64) ([]meta.ShardInfo, error) {
+func GetShardInfoByIds(MetaClient interface {
+	ShardOwner(id uint64) (string, string, *meta.ShardGroupInfo)
+}, ids []uint64) ([]meta.ShardInfo, error) {
 	var shards []meta.ShardInfo
 	for _, id := range ids {
 		_, _, sgi := MetaClient.ShardOwner(id)
@@ -906,8 +915,11 @@ func (me NodeIds) Apply(fn func(nodeId uint64)) {
 
 type Node2ShardIDs map[uint64][]uint64
 
-//TODO: 只选择活跃的Node
-func NewNode2ShardIDs(mc MetaClient, localNode *influxdb.Node, shards []meta.ShardInfo) Node2ShardIDs {
+func NewNode2ShardIDs(mc interface {
+	DataNode(nodeId uint64) (*meta.NodeInfo, error)
+},
+	localNode *influxdb.Node,
+	shards []meta.ShardInfo) Node2ShardIDs {
 	allNodes := make([]uint64, 0)
 	for _, si := range shards {
 		if si.OwnedBy(localNode.ID) {

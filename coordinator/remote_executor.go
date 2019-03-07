@@ -8,6 +8,7 @@ import (
 
 	"github.com/influxdata/influxdb/pkg/tracing"
 	"github.com/influxdata/influxdb/query"
+	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxql"
 )
@@ -28,7 +29,9 @@ type RemoteNodeExecutor interface {
 }
 
 type remoteNodeExecutor struct {
-	MetaClient         MetaClient
+	MetaClient interface {
+		DataNode(nodeId uint64) (*meta.NodeInfo, error)
+	}
 	DailTimeout        time.Duration
 	ShardReaderTimeout time.Duration
 	ClusterTracing     bool
@@ -492,8 +495,10 @@ func (me *remoteNodeExecutor) DeleteSeries(nodeId uint64, database string, sourc
 
 // NodeDialer dials connections to a given node.
 type NodeDialer struct {
-	MetaClient MetaClient
-	Timeout    time.Duration
+	MetaClient interface {
+		DataNode(nodeId uint64) (*meta.NodeInfo, error)
+	}
+	Timeout time.Duration
 }
 
 // DialNode returns a connection to a node.
