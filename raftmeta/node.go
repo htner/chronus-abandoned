@@ -14,7 +14,6 @@ import (
 	"github.com/dgraph-io/badger"
 	"github.com/dgraph-io/badger/options"
 	"github.com/dgraph-io/dgraph/raftwal"
-	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/services/meta"
 	"go.uber.org/zap"
 	"golang.org/x/net/trace"
@@ -130,12 +129,21 @@ type RaftNode struct {
 	RaftConfig    *raft.Config
 	Config        Config
 	Storage       *raftwal.DiskStorage
-	PeersAddr     map[uint64]string
-	Done          chan struct{}
-	props         *proposals
-	rand          *rand.Rand
-	applyCh       chan *internal.EntryWrapper
-	appliedIndex  uint64
+
+	Transport interface {
+		SetPeers(peers map[uint64]string)
+		SetPeer(id uint64, addr string)
+		DeletePeer(id uint64)
+		Peer(id uint64) (string, bool)
+		ClonePeers() map[uint64]string
+		SendMessage(messages []raftpb.Message)
+	}
+
+	Done         chan struct{}
+	props        *proposals
+	rand         *rand.Rand
+	applyCh      chan *internal.EntryWrapper
+	appliedIndex uint64
 
 	lastChecksum Checksum
 
@@ -184,14 +192,12 @@ func NewRaftNode(config Config) *RaftNode {
 	storage := raftwal.Init(walStore, c.ID, 0)
 	c.Storage = storage
 	return &RaftNode{
-		Logger:        logger.New(os.Stderr).With(zap.String("raftmeta", "RaftNode")),
 		leases:        meta.NewLeases(meta.DefaultLeaseDuration),
 		ID:            c.ID,
 		RaftConfig:    c,
 		Config:        config,
 		RaftCtx:       rc,
 		Storage:       storage,
-		PeersAddr:     make(map[uint64]string),
 		Done:          make(chan struct{}),
 		props:         newProposals(),
 		rand:          rand.New(&lockedSource{src: rand.NewSource(time.Now().UnixNano())}),
@@ -201,6 +207,10 @@ func NewRaftNode(config Config) *RaftNode {
 		leaderChanged: make(chan struct{}),
 		lastChecksum:  Checksum{needVerify: false, index: 0, checksum: ""},
 	}
+}
+
+func (s *RaftNode) WithLogger(log *zap.Logger) {
+	s.Logger = log.With(zap.String("raftmeta", "RaftNode"))
 }
 
 // uniqueKey is meant to be unique across all the replicas.
@@ -251,7 +261,7 @@ func (s *RaftNode) restoreFromSnapshot() {
 	err = json.Unmarshal(sp.Data, &sndata)
 	x.Checkf(err, "internal.SnapshotData UnmarshalBinary fail")
 
-	s.SetPeers(sndata.PeersAddr)
+	s.Transport.SetPeers(sndata.PeersAddr)
 
 	metaData := &imeta.Data{}
 	err = metaData.UnmarshalBinary(sndata.Data)
@@ -300,7 +310,7 @@ func (s *RaftNode) joinPeers(peers []raft.Peer) error {
 		rc := internal.RaftContext{}
 		x.Check(json.Unmarshal(p.Context, &rc))
 		addr = rc.Addr
-		s.SetPeer(rc.ID, rc.Addr)
+		s.Transport.SetPeer(rc.ID, rc.Addr)
 	}
 
 	url := fmt.Sprintf("http://%s/update_cluster?op=add", addr)
@@ -364,7 +374,7 @@ func (s *RaftNode) Run() {
 
 			if leader == s.ID {
 				// Leader can send messages in parallel with writing to disk.
-				s.send(rd.Messages)
+				s.Transport.SendMessage(rd.Messages)
 			}
 
 			x.Checkf(s.saveToStorage(rd.HardState, rd.Entries, rd.Snapshot), "terrible! cannot save to storage.")
@@ -381,7 +391,7 @@ func (s *RaftNode) Run() {
 			}
 
 			if s.ID != leader {
-				s.send(rd.Messages)
+				s.Transport.SendMessage(rd.Messages)
 			}
 
 			s.Node.Advance()
@@ -480,11 +490,11 @@ func (s *RaftNode) applyConfChange(e *raftpb.Entry) {
 	s.Logger.Info(fmt.Sprintf("conf change: %+v", cc))
 
 	if cc.Type == raftpb.ConfChangeRemoveNode {
-		s.DeletePeer(cc.NodeID)
+		s.Transport.DeletePeer(cc.NodeID)
 	} else if len(cc.Context) > 0 {
 		var rc internal.RaftContext
 		x.Check(json.Unmarshal(cc.Context, &rc))
-		s.SetPeer(rc.ID, rc.Addr)
+		s.Transport.SetPeer(rc.ID, rc.Addr)
 	}
 	cs := s.Node.ApplyConfChange(cc)
 	s.SetConfState(cs)
@@ -503,66 +513,8 @@ func (s *RaftNode) ConfState() *raftpb.ConfState {
 	return s.RaftConfState
 }
 
-func (s *RaftNode) SetPeers(peers map[uint64]string) {
-	s.Logger.Info(fmt.Sprintf("SetPeers:%+v", peers))
-	s.rwMutex.Lock()
-	defer s.rwMutex.Unlock()
-	s.PeersAddr = peers
-}
-
-func (s *RaftNode) SetPeer(id uint64, addr string) {
-	x.AssertTruef(addr != "", "SetPeer for peer %d has empty addr.", id)
-	s.Logger.Info("SetPeer", zap.Uint64("ID:", id), zap.String("addr", addr))
-	s.rwMutex.Lock()
-	defer s.rwMutex.Unlock()
-	s.PeersAddr[id] = addr
-}
-
-func (s *RaftNode) DeletePeer(id uint64) {
-	s.rwMutex.Lock()
-	defer s.rwMutex.Unlock()
-	delete(s.PeersAddr, id)
-}
-
-func (s *RaftNode) Peer(id uint64) (string, bool) {
-	s.rwMutex.RLock()
-	defer s.rwMutex.RUnlock()
-	addr, ok := s.PeersAddr[id]
-	return addr, ok
-}
-
-func (s *RaftNode) ClonePeers() map[uint64]string {
-	peers := make(map[uint64]string)
-	s.rwMutex.RLock()
-	defer s.rwMutex.RUnlock()
-	for k, v := range s.PeersAddr {
-		peers[k] = v
-	}
-	return peers
-}
-
 func (s *RaftNode) saveToStorage(h raftpb.HardState, es []raftpb.Entry, sn raftpb.Snapshot) error {
 	return s.Storage.Save(h, es, sn)
-}
-
-func (s *RaftNode) send(messages []raftpb.Message) {
-	for _, msg := range messages {
-		data, err := msg.Marshal()
-		if err != nil {
-			panic(err)
-		}
-
-		addr, ok := s.Peer(msg.To)
-		if !ok {
-			s.Logger.Warn("peer not find", zap.Uint64("peer", msg.To))
-			continue
-		}
-		url := fmt.Sprintf("http://%s/message", addr)
-		err = Request(url, data)
-		if err != nil {
-			s.Logger.Error("Request fail:", zap.Error(err), zap.String("url", url))
-		}
-	}
 }
 
 func (s *RaftNode) RecvRaftRPC(ctx context.Context, m raftpb.Message) error {

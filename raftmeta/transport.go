@@ -13,8 +13,84 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 )
+
+type Transport struct {
+	Logger    *zap.Logger
+	rwMutex   sync.RWMutex
+	PeersAddr map[uint64]string
+	Node      interface {
+		RecvRaftRPC(ctx context.Context, m raftpb.Message) error
+	}
+}
+
+func NewTransport() *Transport {
+	return &Transport{
+		PeersAddr: make(map[uint64]string),
+	}
+}
+
+func (t *Transport) WithLogger(log *zap.Logger) {
+	t.Logger = log.With(zap.String("raftmeta", "Transport"))
+}
+
+func (t *Transport) SetPeers(peers map[uint64]string) {
+	t.Logger.Info(fmt.Sprintf("SetPeers:%+v", peers))
+	t.rwMutex.Lock()
+	defer t.rwMutex.Unlock()
+	t.PeersAddr = peers
+}
+
+func (t *Transport) SetPeer(id uint64, addr string) {
+	t.Logger.Info("SetPeer", zap.Uint64("ID:", id), zap.String("addr", addr))
+	t.rwMutex.Lock()
+	defer t.rwMutex.Unlock()
+	t.PeersAddr[id] = addr
+}
+
+func (t *Transport) DeletePeer(id uint64) {
+	t.Logger.Info("DeletePeer", zap.Uint64("ID:", id))
+	t.rwMutex.Lock()
+	defer t.rwMutex.Unlock()
+	delete(t.PeersAddr, id)
+}
+
+func (t *Transport) Peer(id uint64) (string, bool) {
+	t.rwMutex.RLock()
+	defer t.rwMutex.RUnlock()
+	addr, ok := t.PeersAddr[id]
+	return addr, ok
+}
+
+func (t *Transport) ClonePeers() map[uint64]string {
+	peers := make(map[uint64]string)
+	t.rwMutex.RLock()
+	defer t.rwMutex.RUnlock()
+	for k, v := range t.PeersAddr {
+		peers[k] = v
+	}
+	return peers
+}
+
+func (t *Transport) SendMessage(messages []raftpb.Message) {
+	for _, msg := range messages {
+		data, err := msg.Marshal()
+		x.Check(err)
+
+		addr, ok := t.Peer(msg.To)
+		if !ok {
+			t.Logger.Warn("peer not find", zap.Uint64("peer", msg.To))
+			continue
+		}
+		url := fmt.Sprintf("http://%s/message", addr)
+		err = Request(url, data)
+		if err != nil {
+			t.Logger.Error("Request fail:", zap.Error(err), zap.String("url", url))
+		}
+	}
+}
 
 func (s *RaftNode) HandleUpdateCluster(w http.ResponseWriter, r *http.Request) {
 	resp := &CommonResp{}

@@ -282,7 +282,7 @@ func (s *RaftNode) applyCommitted(proposal *internal.Proposal, index uint64) err
 		x.Check(err)
 		var sndata internal.SnapshotData
 		sndata.Data = md
-		sndata.PeersAddr = s.ClonePeers()
+		sndata.PeersAddr = s.Transport.ClonePeers()
 
 		data, err := json.Marshal(&sndata)
 		x.Check(err)

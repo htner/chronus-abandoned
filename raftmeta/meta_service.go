@@ -6,13 +6,11 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
 	"github.com/angopher/chronus/raftmeta/internal"
 	imeta "github.com/angopher/chronus/services/meta"
-	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxql"
 	"go.uber.org/zap"
@@ -34,11 +32,14 @@ type MetaService struct {
 
 func NewMetaService(cli *imeta.Client, node *RaftNode, l *Linearizabler) *MetaService {
 	return &MetaService{
-		Logger:        logger.New(os.Stderr),
 		cli:           cli,
 		node:          node,
 		Linearizabler: l,
 	}
+}
+
+func (s *MetaService) WithLogger(log *zap.Logger) {
+	s.Logger = log.With(zap.String("raftmeta", "MetaService"))
 }
 
 func (s *MetaService) Start(addr string) {

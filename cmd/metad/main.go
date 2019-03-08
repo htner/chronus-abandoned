@@ -7,6 +7,7 @@ import (
 	"github.com/angopher/chronus/raftmeta"
 	imeta "github.com/angopher/chronus/services/meta"
 	"github.com/angopher/chronus/x"
+	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/services/meta"
 	"os"
 )
@@ -32,8 +33,17 @@ func main() {
 	err := metaCli.Open()
 	x.Check(err)
 
+	log := logger.New(os.Stderr)
+
 	node := raftmeta.NewRaftNode(config)
 	node.MetaCli = metaCli
+	node.WithLogger(log)
+
+	t := raftmeta.NewTransport()
+	t.Node = node
+	t.WithLogger(log)
+
+	node.Transport = t
 	node.InitAndStartNode()
 	go node.Run()
 
@@ -41,6 +51,6 @@ func main() {
 	go linearRead.ReadLoop()
 
 	service := raftmeta.NewMetaService(metaCli, node, linearRead)
+	service.WithLogger(log)
 	service.Start(config.MyAddr)
 }
-
