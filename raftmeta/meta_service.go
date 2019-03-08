@@ -19,8 +19,8 @@ import (
 )
 
 type CommonResp struct {
-	RetCode int    `json:ret_code`
-	RetMsg  string `json:ret_msg`
+	RetCode int    `json:"ret_code"`
+	RetMsg  string `json:"ret_msg"`
 }
 
 type MetaService struct {

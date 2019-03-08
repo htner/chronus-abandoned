@@ -149,7 +149,15 @@ type RaftNode struct {
 	Logger *zap.Logger
 }
 
-func NewRaftNode(c *raft.Config, config Config) *RaftNode {
+func NewRaftNode(config Config) *RaftNode {
+	c := &raft.Config{
+		ID:              config.RaftId,
+		ElectionTick:    config.ElectionTick,
+		HeartbeatTick:   config.HeartbeatTick,
+		MaxSizePerMsg:   config.MaxSizePerMsg,
+		MaxInflightMsgs: config.MaxInflightMsgs,
+	}
+
 	walDir := config.WalDir
 	x.Checkf(os.MkdirAll(walDir, 0700), "Error while creating WAL dir.")
 	kvOpt := badger.DefaultOptions
@@ -253,7 +261,15 @@ func (s *RaftNode) restoreFromSnapshot() {
 	x.Checkf(err, "meta cli ReplaceData fail")
 }
 
-func (s *RaftNode) InitAndStartNode(peers []raft.Peer) {
+func (s *RaftNode) InitAndStartNode() {
+	peers := []raft.Peer{}
+	for _, p := range s.Config.Peers {
+		rc := internal.RaftContext{Addr: p.Addr, ID: p.RaftId}
+		data, err := json.Marshal(&rc)
+		x.Check(err)
+		peers = append(peers, raft.Peer{ID: p.RaftId, Context: data})
+	}
+
 	idx, restart, err := s.PastLife()
 	x.Check(err)
 	s.setAppliedIndex(idx)
@@ -608,9 +624,8 @@ func (s *RaftNode) ProposeAndWait(ctx context.Context, proposal *internal.Propos
 		}
 		return errInternalRetry
 	}
-
-	return nil
 }
+
 func (s *RaftNode) PastLife() (idx uint64, restart bool, rerr error) {
 	var sp raftpb.Snapshot
 	sp, rerr = s.Storage.Snapshot()
