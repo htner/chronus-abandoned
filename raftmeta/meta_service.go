@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/angopher/chronus/raftmeta/internal"
@@ -37,6 +38,25 @@ func NewMetaService(cli *imeta.Client, node *RaftNode, l *Linearizabler) *MetaSe
 		cli:           cli,
 		node:          node,
 		Linearizabler: l,
+	}
+}
+
+func (s *MetaService) Start(addr string) {
+	http.HandleFunc("/message", func(w http.ResponseWriter, r *http.Request) {
+		s.node.HandleMessage(w, r)
+	})
+	http.HandleFunc("/update_cluster", func(w http.ResponseWriter, r *http.Request) {
+		s.node.HandleUpdateCluster(w, r)
+	})
+
+	initHttpHandler(s)
+
+	ipPort := strings.Split(addr, ":")
+	listenAddr := ":" + ipPort[1]
+	s.Logger.Info("listen:", zap.String("addr", listenAddr))
+	err := http.ListenAndServe(listenAddr, nil)
+	if err != nil {
+		fmt.Printf("msg=ListenAndServe failed,err=%s\n", err.Error())
 	}
 }
 
@@ -1281,4 +1301,35 @@ func WriteResp(w http.ResponseWriter, v interface{}) error {
 
 	return nil
 
+}
+
+func initHttpHandler(s *MetaService) {
+	http.HandleFunc(DATA_PATH, s.Data)
+	http.HandleFunc(CREATE_DATABASE_PATH, s.CreateDatabase)
+	http.HandleFunc(DROP_DATABASE_PATH, s.DropDatabase)
+	http.HandleFunc(CREATE_SHARD_GROUP_PATH, s.CreateShardGroup)
+	http.HandleFunc(CREATE_DATA_NODE_PATH, s.CreateDataNode)
+
+	http.HandleFunc(DROP_RETENTION_POLICY_PATH, s.DropRetentionPolicy)
+	http.HandleFunc(DELETE_DATA_NODE_PATH, s.DeleteDataNode)
+	http.HandleFunc(CREATE_RETENTION_POLICY_PATH, s.CreateRetentionPolicy)
+	http.HandleFunc(UPDATE_RETENTION_POLICY_PATH, s.UpdateRetentionPolicy)
+	http.HandleFunc(CREATE_USER_PATH, s.CreateUser)
+	http.HandleFunc(DROP_USER_PATH, s.DropUser)
+	http.HandleFunc(UPDATE_USER_PATH, s.UpdateUser)
+	http.HandleFunc(SET_PRIVILEGE_PATH, s.SetPrivilege)
+	http.HandleFunc(SET_ADMIN_PRIVILEGE, s.SetAdminPrivilege)
+	http.HandleFunc(AUTHENTICATE_PATH, s.Authenticate)
+	http.HandleFunc(DROP_SHARD_PATH, s.DropShard)
+	http.HandleFunc(TRUNCATE_SHARD_GROUPS_PATH, s.TruncateShardGroups)
+	http.HandleFunc(PRUNE_SHARD_GROUPS_PATH, s.PruneShardGroups)
+	http.HandleFunc(DELETE_SHARD_GROUP_PATH, s.DeleteShardGroup)
+	http.HandleFunc(PRECREATE_SHARD_GROUPS_PATH, s.PrecreateShardGroups)
+	http.HandleFunc(CREATE_DATABASE_WITH_RETENTION_POLICY_PATH, s.CreateDatabaseWithRetentionPolicy)
+	http.HandleFunc(CREATE_CONTINUOUS_QUERY_PATH, s.CreateContinuousQuery)
+	http.HandleFunc(DROP_CONTINUOUS_QUERY_PATH, s.DropContinuousQuery)
+	http.HandleFunc(CREATE_SUBSCRIPTION_PATH, s.CreateSubscription)
+	http.HandleFunc(DROP_SUBSCRIPTION_PATH, s.DropSubscription)
+	http.HandleFunc(ACQUIRE_LEASE_PATH, s.AcquireLease)
+	http.HandleFunc(PING_PATH, s.Ping)
 }
