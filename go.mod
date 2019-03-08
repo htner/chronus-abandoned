@@ -12,7 +12,6 @@ require (
 	github.com/dgraph-io/dgraph v1.0.11
 	github.com/dgryski/go-farm v0.0.0-20190104051053-3adb47b1fb0f // indirect
 	github.com/gogo/protobuf v1.2.1
-	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
 	github.com/golang/snappy v0.0.0-20180518054509-2e65f85255db
 	github.com/google/go-cmp v0.2.0
 	github.com/influxdata/influxdb v1.7.4
@@ -26,7 +25,6 @@ require (
 	github.com/pkg/errors v0.8.0
 	github.com/pkg/profile v1.2.1 // indirect
 	github.com/xlab/treeprint v0.0.0-20181112141820-a009c3971eca // indirect
-	go.etcd.io/etcd v3.3.12+incompatible
 	go.opencensus.io v0.19.0 // indirect
 	go.uber.org/zap v1.9.1
 	golang.org/x/crypto v0.0.0-20181203042331-505ab145d0a9
@@ -35,4 +33,6 @@ require (
 	golang.org/x/text v0.3.0
 	golang.org/x/time v0.0.0-20181108054448-85acf8d2951c // indirect
 	gopkg.in/fatih/pool.v2 v2.0.0
+	labix.org/v2/mgo v0.0.0-20140701140051-000000000287 // indirect
+	launchpad.net/gocheck v0.0.0-20140225173054-000000000087 // indirect
 )
