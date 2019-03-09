@@ -40,7 +40,6 @@ func main() {
 	node.WithLogger(log)
 
 	t := raftmeta.NewTransport()
-	t.Node = node
 	t.WithLogger(log)
 
 	node.Transport = t

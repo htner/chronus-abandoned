@@ -12,6 +12,10 @@ import (
 )
 
 func (s *RaftNode) applyCommitted(proposal *internal.Proposal, index uint64) error {
+	if applyCallBack != nil {
+		//only for test
+		s.ApplyCallBack(proposal, index)
+	}
 	msgName, _ := internal.MessageTypeName[proposal.Type]
 	s.Logger.Info("applyCommitted ", zap.String("type", msgName))
 

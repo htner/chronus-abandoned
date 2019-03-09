@@ -137,6 +137,7 @@ type RaftNode struct {
 		Peer(id uint64) (string, bool)
 		ClonePeers() map[uint64]string
 		SendMessage(messages []raftpb.Message)
+		JoinCluster(ctx *internal.RaftContext, peers []raft.Peer) error
 	}
 
 	Done         chan struct{}
@@ -153,6 +154,9 @@ type RaftNode struct {
 
 	leaderChanged   chan struct{}
 	leaderChangedMu sync.RWMutex
+
+	//only for test
+	ApplyCallBack func(proposal *internal.Proposal, index uint64)
 
 	Logger *zap.Logger
 }
@@ -305,18 +309,7 @@ func (s *RaftNode) InitAndStartNode() {
 
 func (s *RaftNode) joinPeers(peers []raft.Peer) error {
 	x.AssertTrue(len(peers) > 0)
-	addr := ""
-	for _, p := range peers {
-		rc := internal.RaftContext{}
-		x.Check(json.Unmarshal(p.Context, &rc))
-		addr = rc.Addr
-		s.Transport.SetPeer(rc.ID, rc.Addr)
-	}
-
-	url := fmt.Sprintf("http://%s/update_cluster?op=add", addr)
-	data, err := json.Marshal(s.RaftCtx)
-	x.Checkf(err, "encode internal.RaftContext fail")
-	return Request(url, data)
+	return s.Transport.JoinCluster(s.RaftCtx, peers)
 }
 
 func (s *RaftNode) Run() {

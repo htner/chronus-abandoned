@@ -51,10 +51,7 @@ func NewConfig() Config {
 		Tracing:             false,
 		MyAddr:              DefaultAddr,
 		RaftId:              1,
-		Peers: []Peer{
-			{Addr: "127.0.0.1:2348", RaftId: 2},
-			{Addr: "127.0.0.1:2349", RaftId: 3},
-		},
+		Peers: []Peer{},
 		TickTimeMs:          20,
 		ElectionTick:        DefaultElectionTick,
 		HeartbeatTick:       DefaultHeartbeatTick,

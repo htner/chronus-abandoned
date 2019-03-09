@@ -92,6 +92,26 @@ func (t *Transport) SendMessage(messages []raftpb.Message) {
 	}
 }
 
+func (t *Transport) RecvMessage(message raftpb.Message) {
+	s.Node.RecvRaftRPC(context.Background(), msg)
+}
+
+func (t *Transport) JoinCluster(ctx *internal.RaftContext, peers []raft.Peer) error {
+	x.AssertTrue(len(peers) > 0)
+	addr := ""
+	for _, p := range peers {
+		rc := internal.RaftContext{}
+		x.Check(json.Unmarshal(p.Context, &rc))
+		addr = rc.Addr
+		s.Transport.SetPeer(rc.ID, rc.Addr)
+	}
+
+	url := fmt.Sprintf("http://%s/update_cluster?op=add", addr)
+	data, err := json.Marshal(ctx)
+	x.Checkf(err, "encode internal.RaftContext fail")
+	return Request(url, data)
+}
+
 func (s *RaftNode) HandleUpdateCluster(w http.ResponseWriter, r *http.Request) {
 	resp := &CommonResp{}
 	resp.RetCode = -1
