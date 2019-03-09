@@ -51,7 +51,7 @@ func NewConfig() Config {
 		Tracing:             false,
 		MyAddr:              DefaultAddr,
 		RaftId:              1,
-		Peers: []Peer{},
+		Peers:               []Peer{},
 		TickTimeMs:          20,
 		ElectionTick:        DefaultElectionTick,
 		HeartbeatTick:       DefaultHeartbeatTick,
@@ -71,10 +71,6 @@ func (c *Config) FromTomlFile(fpath string) error {
 		return err
 	}
 
-	// Handle any potential Byte-Order-Marks that may be in the config file.
-	// This is for Windows compatibility only.
-	// See https://github.com/influxdata/telegraf/issues/1378 and
-	// https://github.com/influxdata/influxdb/issues/8965.
 	bom := unicode.BOMOverride(transform.Nop)
 	bs, _, err = transform.Bytes(bom, bs)
 	if err != nil {

@@ -1,63 +1,52 @@
 package raftmeta_test
 
 import (
+	"fmt"
+	"github.com/angopher/chronus/raftmeta"
+	"github.com/angopher/chronus/raftmeta/internal"
+	imeta "github.com/angopher/chronus/services/meta"
 	"testing"
 )
 
 type applyData struct {
 	proposal *internal.Proposal
-	index uint64
+	index    uint64
 }
 
-func TestLinearizability(t *testing.T) {
-	c1 := raftmeta.NewConfig()
-	c1.RaftId = 1
-	c1.WalDir = "/tmp/.wal1"
-	c1.MyAddr = "127.0.0.1:2347"
-	t1 := raftmeta.NewTransport()
-	ch1 := make(chan *applyData, 10000)
+var s1 *raftmeta.MetaService
+var s2 *raftmeta.MetaService
+var s3 *raftmeta.MetaService
 
-	go startService(c1, t1, func(proposal *internal.Proposal, index uint64) {
-		data := &applyData {
-			proposal: proposal,
-			index: index,
-		}
-		ch1 <- data
+func TestMain(t *testing.T) {
+	s1 = OpenOneService(1, []raftmeta.Peer{})
+	s2 = OpenOneService(2, []raftmeta.Peer{
+		{Addr: s1.Node.RaftCtx.Addr, RaftId: s1.Node.RaftCtx.RaftId},
 	})
-
-
-	c2 := raftmeta.NewConfig()
-	c2.RaftId = 2
-	c2.WalDir = "/tmp/.wal2"
-	c2.MyAddr = "127.0.0.1:2348"
-	t2 := raftmeta.NewTransport()
-	ch2 := make(chan *applyData, 10000)
-
-	go startService(config, t2, func(proposal *internal.Proposal, index uint64) {
-		data := &applyData {
-			proposal: proposal,
-			index: index,
-		}
-		ch2 <- data
-	})
-
-	c3 := raftmeta.NewConfig()
-	c3.RaftId = 3
-	c3.WalDir = "/tmp/.wal3"
-	c3.MyAddr = "127.0.0.1:2349"
-	t3 := raftmeta.NewTransport()
-	ch3 := make(chan *applyData, 10000)
-
-	go startService(config, t3, func(proposal *internal.Proposal, index uint64) {
-		data := &applyData {
-			proposal: proposal,
-			index: index,
-		}
-		ch3 <- data
+	s3 = OpenOneService(3, []raftmeta.Peer{
+		{Addr: s1.Node.RaftCtx.Addr, RaftId: s1.Node.RaftCtx.RaftId},
+		{Addr: s2.Node.RaftCtx.Addr, RaftId: s2.Node.RaftCtx.RaftId},
 	})
 }
 
-func startService(config rafmeta.Config, t *raftmeta.Transport, cb func(proposal *internal.Proposal, index uint64)) {
+func OpenOneService(id uint64, peers []raftmeta.Peer) *raftmeta.MetaService {
+	c := raftmeta.NewConfig()
+	c.RaftId = id
+	c.WalDir = fmt.Sprintf("/tmp/.wal%d", id)
+	c.MyAddr = fmt.Sprintf("127.0.0.1:%d", 2347+id-1)
+	c.Peers = peers
+	t := &fakeTransport{}
+	t.ch = make(chan *applyData, 10000)
+
+	return startService(c, t, func(proposal *internal.Proposal, index uint64) {
+		data := &applyData{
+			proposal: proposal,
+			index:    index,
+		}
+		t.ch <- data
+	})
+}
+
+func startService(config rafmeta.Config, t *fakeTransport, cb func(proposal *internal.Proposal, index uint64)) *raftmeta.MetaService {
 	metaCli := imeta.NewClient(&meta.Config{
 		RetentionAutoCreate: config.RetentionAutoCreate,
 		LoggingEnabled:      true,
@@ -83,18 +72,20 @@ func startService(config rafmeta.Config, t *raftmeta.Transport, cb func(proposal
 
 	service := raftmeta.NewMetaService(metaCli, node, linearRead)
 	service.WithLogger(log)
-	service.Start(config.MyAddr)
+	go service.Start(config.MyAddr)
+	return service
 }
 
 type fakeTransport struct {
-	SetPeersFn func(peers map[uint64]string)
-	SetPeerFn func(id uint64, addr string)
-	DeletePeerFn func(id uint64)
-	PeerFn func(id uint64) (string, bool)
-	ClonePeersFn func() map[uint64]string
+	ch            chan *applyData
+	SetPeersFn    func(peers map[uint64]string)
+	SetPeerFn     func(id uint64, addr string)
+	DeletePeerFn  func(id uint64)
+	PeerFn        func(id uint64) (string, bool)
+	ClonePeersFn  func() map[uint64]string
 	SendMessageFn func(messages []raftpb.Message)
 	RecvMessageFn func(message raftpb.Message)
-	JoinClusterFn func (ctx *internal.RaftContext, peers []raft.Peer) error
+	JoinClusterFn func(ctx *internal.RaftContext, peers []raft.Peer) error
 }
 
 func (f *fakeTransport) SetPeers(peers map[uint64]string) {
@@ -128,4 +119,3 @@ func (f *fakeTransport) RecvMessage(message raftpb.Message) {
 func (f *fakeTransport) JoinCluster(ctx *internal.RaftContext, peers []raft.Peer) error {
 	return f.JoinClusterFn(ctx, peers)
 }
-

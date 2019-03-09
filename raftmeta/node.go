@@ -312,6 +312,11 @@ func (s *RaftNode) joinPeers(peers []raft.Peer) error {
 	return s.Transport.JoinCluster(s.RaftCtx, peers)
 }
 
+func (s *RaftNode) Stop() {
+	close(s.Done)
+	s.Node.Stop()
+}
+
 func (s *RaftNode) Run() {
 	go s.processApplyCh()
 
@@ -446,34 +451,39 @@ func (s *RaftNode) trigerSnapshot(keepN int) error {
 
 func (s *RaftNode) processApplyCh() {
 	for ew := range s.applyCh {
-		if ew.Restore {
-			s.restoreFromSnapshot()
-			continue
-		}
-
-		e := ew.Entry
-		appliedIndex := s.AppliedIndex()
-		if e.Index <= appliedIndex {
-			s.Logger.Info("ignored old index", zap.Uint64("index", e.Index), zap.Uint64("applied:", appliedIndex))
-			continue
-		}
-		x.AssertTruef(appliedIndex == e.Index-1, fmt.Sprintf("sync error happend. index:%d, applied:%d", e.Index, appliedIndex))
-
-		if e.Type == raftpb.EntryConfChange {
-			s.applyConfChange(&e)
-		} else if len(e.Data) == 0 {
-			s.Logger.Info("empty entry. ignored")
-		} else {
-			proposal := &internal.Proposal{}
-			if err := json.Unmarshal(e.Data, &proposal); err != nil {
-				x.Fatalf("Unable to unmarshal proposal: %v %q\n", err, e.Data)
+		select {
+		case <-s.Done:
+			return
+		case ew := <-s.applyCh:
+			if ew.Restore {
+				s.restoreFromSnapshot()
+				continue
 			}
-			err := s.applyCommitted(proposal, e.Index)
-			s.Logger.Info("Applied proposal", zap.String("key", proposal.Key), zap.Uint64("index", e.Index), zap.Error(err))
 
-			s.props.Done(proposal.Key, err)
+			e := ew.Entry
+			appliedIndex := s.AppliedIndex()
+			if e.Index <= appliedIndex {
+				s.Logger.Info("ignored old index", zap.Uint64("index", e.Index), zap.Uint64("applied:", appliedIndex))
+				continue
+			}
+			x.AssertTruef(appliedIndex == e.Index-1, fmt.Sprintf("sync error happend. index:%d, applied:%d", e.Index, appliedIndex))
+
+			if e.Type == raftpb.EntryConfChange {
+				s.applyConfChange(&e)
+			} else if len(e.Data) == 0 {
+				s.Logger.Info("empty entry. ignored")
+			} else {
+				proposal := &internal.Proposal{}
+				if err := json.Unmarshal(e.Data, &proposal); err != nil {
+					x.Fatalf("Unable to unmarshal proposal: %v %q\n", err, e.Data)
+				}
+				err := s.applyCommitted(proposal, e.Index)
+				s.Logger.Info("Applied proposal", zap.String("key", proposal.Key), zap.Uint64("index", e.Index), zap.Error(err))
+
+				s.props.Done(proposal.Key, err)
+			}
+			s.setAppliedIndex(e.Index)
 		}
-		s.setAppliedIndex(e.Index)
 	}
 }
 

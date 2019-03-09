@@ -23,7 +23,7 @@ type CommonResp struct {
 
 type MetaService struct {
 	Logger        *zap.Logger
-	node          *RaftNode
+	Node          *RaftNode
 	cli           *imeta.Client
 	Linearizabler interface {
 		ReadNotify(ctx context.Context) error
@@ -33,7 +33,7 @@ type MetaService struct {
 func NewMetaService(cli *imeta.Client, node *RaftNode, l *Linearizabler) *MetaService {
 	return &MetaService{
 		cli:           cli,
-		node:          node,
+		Node:          node,
 		Linearizabler: l,
 	}
 }
@@ -42,12 +42,16 @@ func (s *MetaService) WithLogger(log *zap.Logger) {
 	s.Logger = log.With(zap.String("raftmeta", "MetaService"))
 }
 
+func (s *MetaService) Stop() {
+	s.Node.Stop()
+}
+
 func (s *MetaService) Start(addr string) {
 	http.HandleFunc("/message", func(w http.ResponseWriter, r *http.Request) {
-		s.node.HandleMessage(w, r)
+		s.Node.HandleMessage(w, r)
 	})
 	http.HandleFunc("/update_cluster", func(w http.ResponseWriter, r *http.Request) {
-		s.node.HandleUpdateCluster(w, r)
+		s.Node.HandleUpdateCluster(w, r)
 	})
 
 	initHttpHandler(s)
@@ -71,7 +75,7 @@ func (s *MetaService) ProposeAndWait(msgType int, data []byte, retData interface
 
 	resCh := make(chan error)
 	go func() {
-		err := s.node.ProposeAndWait(ctx, pr, retData)
+		err := s.Node.ProposeAndWait(ctx, pr, retData)
 		resCh <- err
 	}()
 
