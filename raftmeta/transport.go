@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/angopher/chronus/raftmeta/internal"
 	"github.com/angopher/chronus/x"
+	"github.com/coreos/etcd/raft"
 	"github.com/coreos/etcd/raft/raftpb"
 	"go.uber.org/zap"
 	"io/ioutil"
@@ -93,7 +94,7 @@ func (t *Transport) SendMessage(messages []raftpb.Message) {
 }
 
 func (t *Transport) RecvMessage(message raftpb.Message) {
-	s.Node.RecvRaftRPC(context.Background(), msg)
+	t.Node.RecvRaftRPC(context.Background(), message)
 }
 
 func (t *Transport) JoinCluster(ctx *internal.RaftContext, peers []raft.Peer) error {
@@ -103,7 +104,7 @@ func (t *Transport) JoinCluster(ctx *internal.RaftContext, peers []raft.Peer) er
 		rc := internal.RaftContext{}
 		x.Check(json.Unmarshal(p.Context, &rc))
 		addr = rc.Addr
-		s.Transport.SetPeer(rc.ID, rc.Addr)
+		t.SetPeer(rc.ID, rc.Addr)
 	}
 
 	url := fmt.Sprintf("http://%s/update_cluster?op=add", addr)

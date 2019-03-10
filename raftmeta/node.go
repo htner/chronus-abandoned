@@ -450,7 +450,7 @@ func (s *RaftNode) trigerSnapshot(keepN int) error {
 }
 
 func (s *RaftNode) processApplyCh() {
-	for ew := range s.applyCh {
+	for {
 		select {
 		case <-s.Done:
 			return

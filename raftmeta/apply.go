@@ -12,7 +12,7 @@ import (
 )
 
 func (s *RaftNode) applyCommitted(proposal *internal.Proposal, index uint64) error {
-	if applyCallBack != nil {
+	if s.ApplyCallBack != nil {
 		//only for test
 		s.ApplyCallBack(proposal, index)
 	}
