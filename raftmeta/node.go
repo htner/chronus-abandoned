@@ -134,7 +134,6 @@ type RaftNode struct {
 		SetPeers(peers map[uint64]string)
 		SetPeer(id uint64, addr string)
 		DeletePeer(id uint64)
-		Peer(id uint64) (string, bool)
 		ClonePeers() map[uint64]string
 		SendMessage(messages []raftpb.Message)
 		JoinCluster(ctx *internal.RaftContext, peers []raft.Peer) error
