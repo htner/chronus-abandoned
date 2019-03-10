@@ -1,11 +1,19 @@
 package raftmeta_test
 
 import (
+	"testing"
 	"fmt"
+    "os"
+
+	"github.com/coreos/etcd/raft"
+	"github.com/influxdata/influxdb/services/meta"
+	"github.com/coreos/etcd/raft/raftpb"
+	"github.com/influxdata/influxdb/logger"
+
 	"github.com/angopher/chronus/raftmeta"
+	"github.com/angopher/chronus/x"
 	"github.com/angopher/chronus/raftmeta/internal"
 	imeta "github.com/angopher/chronus/services/meta"
-	"testing"
 )
 
 type applyData struct {
@@ -20,11 +28,11 @@ var s3 *raftmeta.MetaService
 func TestMain(t *testing.T) {
 	s1 = OpenOneService(1, []raftmeta.Peer{})
 	s2 = OpenOneService(2, []raftmeta.Peer{
-		{Addr: s1.Node.RaftCtx.Addr, RaftId: s1.Node.RaftCtx.RaftId},
+		{Addr: s1.Node.RaftCtx.Addr, RaftId: s1.Node.RaftCtx.ID},
 	})
 	s3 = OpenOneService(3, []raftmeta.Peer{
-		{Addr: s1.Node.RaftCtx.Addr, RaftId: s1.Node.RaftCtx.RaftId},
-		{Addr: s2.Node.RaftCtx.Addr, RaftId: s2.Node.RaftCtx.RaftId},
+		{Addr: s1.Node.RaftCtx.Addr, RaftId: s1.Node.RaftCtx.ID},
+		{Addr: s2.Node.RaftCtx.Addr, RaftId: s2.Node.RaftCtx.ID},
 	})
 }
 
@@ -46,7 +54,7 @@ func OpenOneService(id uint64, peers []raftmeta.Peer) *raftmeta.MetaService {
 	})
 }
 
-func startService(config rafmeta.Config, t *fakeTransport, cb func(proposal *internal.Proposal, index uint64)) *raftmeta.MetaService {
+func startService(config raftmeta.Config, t *fakeTransport, cb func(proposal *internal.Proposal, index uint64)) *raftmeta.MetaService {
 	metaCli := imeta.NewClient(&meta.Config{
 		RetentionAutoCreate: config.RetentionAutoCreate,
 		LoggingEnabled:      true,
@@ -59,9 +67,6 @@ func startService(config rafmeta.Config, t *fakeTransport, cb func(proposal *int
 	node.MetaCli = metaCli
 	node.ApplyCallBack = cb
 	node.WithLogger(log)
-
-	t.Node = node
-	t.WithLogger(log)
 
 	node.Transport = t
 	node.InitAndStartNode()
@@ -89,15 +94,15 @@ type fakeTransport struct {
 }
 
 func (f *fakeTransport) SetPeers(peers map[uint64]string) {
-	return f.SetPeersFn(peers)
+	f.SetPeersFn(peers)
 }
 
 func (f *fakeTransport) SetPeer(id uint64, addr string) {
-	return f.SetPeerFn(id, addr)
+	f.SetPeerFn(id, addr)
 }
 
 func (f *fakeTransport) DeletePeer(id uint64) {
-	return f.DeletePeerFn(id)
+	f.DeletePeerFn(id)
 }
 
 func (f *fakeTransport) Peer(id uint64) (string, bool) {
@@ -109,11 +114,11 @@ func (f *fakeTransport) ClonePeers() map[uint64]string {
 }
 
 func (f *fakeTransport) SendMessage(messages []raftpb.Message) {
-	return f.SendMessageFn(messages)
+	f.SendMessageFn(messages)
 }
 
 func (f *fakeTransport) RecvMessage(message raftpb.Message) {
-	return f.RecvMessageFn(message)
+	f.RecvMessageFn(message)
 }
 
 func (f *fakeTransport) JoinCluster(ctx *internal.RaftContext, peers []raft.Peer) error {
