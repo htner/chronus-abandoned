@@ -49,7 +49,8 @@ func main() {
 	linearRead := raftmeta.NewLinearizabler(node)
 	go linearRead.ReadLoop()
 
-	service := raftmeta.NewMetaService(metaCli, node, linearRead)
+	service := raftmeta.NewMetaService(config.MyAddr, metaCli, node, linearRead)
+    service.InitRouter()
 	service.WithLogger(log)
-	service.Start(config.MyAddr)
+	service.Start()
 }

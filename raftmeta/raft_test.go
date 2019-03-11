@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/coreos/etcd/raft"
 	"github.com/coreos/etcd/raft/raftpb"
@@ -29,6 +30,7 @@ var s3 *raftmeta.MetaService
 var transports map[uint64]*fakeTransport
 
 func TestMain(t *testing.T) {
+	//Initialize transport
 	transports = make(map[uint64]*fakeTransport)
 	t1 := &fakeTransport{}
 	transports[1] = t1
@@ -47,17 +49,6 @@ func TestMain(t *testing.T) {
 	t2.SendMessageFn = send
 	t3.SendMessageFn = send
 
-	s1 = OpenOneService(1, t1, []raftmeta.Peer{})
-	t1.RecvMessageFn = func(message raftpb.Message) {
-		s1.Node.RecvRaftRPC(context.Background(), message)
-	}
-
-	s2 = OpenOneService(2, t2, []raftmeta.Peer{
-		{Addr: s1.Node.RaftCtx.Addr, RaftId: s1.Node.RaftCtx.ID},
-	})
-	t2.RecvMessageFn = func(message raftpb.Message) {
-		s2.Node.RecvRaftRPC(context.Background(), message)
-	}
 	t2.JoinClusterFn = func(ctx *internal.RaftContext, peers []raft.Peer) error {
 		data, _ := json.Marshal(ctx)
 		cc := raftpb.ConfChange{
@@ -68,7 +59,24 @@ func TestMain(t *testing.T) {
 		}
 		return s1.Node.ProposeConfChange(context.Background(), cc)
 	}
+	t3.JoinClusterFn = t2.JoinClusterFn
 
+	//Initialize service1
+	s1 = OpenOneService(1, t1, []raftmeta.Peer{})
+	s1.InitRouter()
+	t1.RecvMessageFn = func(message raftpb.Message) {
+		s1.Node.RecvRaftRPC(context.Background(), message)
+	}
+
+	//Initialize service2
+	s2 = OpenOneService(2, t2, []raftmeta.Peer{
+		{Addr: s1.Node.RaftCtx.Addr, RaftId: s1.Node.RaftCtx.ID},
+	})
+	t2.RecvMessageFn = func(message raftpb.Message) {
+		s2.Node.RecvRaftRPC(context.Background(), message)
+	}
+
+	//Initialize service3
 	s3 = OpenOneService(3, t3, []raftmeta.Peer{
 		{Addr: s1.Node.RaftCtx.Addr, RaftId: s1.Node.RaftCtx.ID},
 		{Addr: s2.Node.RaftCtx.Addr, RaftId: s2.Node.RaftCtx.ID},
@@ -76,7 +84,21 @@ func TestMain(t *testing.T) {
 	t3.RecvMessageFn = func(message raftpb.Message) {
 		s3.Node.RecvRaftRPC(context.Background(), message)
 	}
-	t3.JoinClusterFn = t2.JoinClusterFn
+
+	go s1.Start()
+	go s2.Start()
+	go s3.Start()
+}
+
+//随机并发创建1000个database
+//随机并发创建100w个ShardGroup
+//验证状态机的一致性
+//验证所有节点的变更日志顺序是否完全一致
+func TestNormal(t *testing.T) {
+	req := &raftmeta.CreateDatabaseReq{Name: "test"}
+	data, _ := json.Marshal(req)
+	db := &meta.DatabaseInfo{}
+	err := s1.ProposeAndWait(internal.CreateDatabase, data, db)
 }
 
 func OpenOneService(id uint64, t *fakeTransport, peers []raftmeta.Peer) *raftmeta.MetaService {
@@ -87,7 +109,7 @@ func OpenOneService(id uint64, t *fakeTransport, peers []raftmeta.Peer) *raftmet
 	c.Peers = peers
 	t.ch = make(chan *applyData, 10000)
 
-	return startService(c, t, func(proposal *internal.Proposal, index uint64) {
+	return newService(c, t, func(proposal *internal.Proposal, index uint64) {
 		data := &applyData{
 			proposal: proposal,
 			index:    index,
@@ -96,7 +118,7 @@ func OpenOneService(id uint64, t *fakeTransport, peers []raftmeta.Peer) *raftmet
 	})
 }
 
-func startService(config raftmeta.Config, t *fakeTransport, cb func(proposal *internal.Proposal, index uint64)) *raftmeta.MetaService {
+func newService(config raftmeta.Config, t *fakeTransport, cb func(proposal *internal.Proposal, index uint64)) *raftmeta.MetaService {
 	metaCli := imeta.NewClient(&meta.Config{
 		RetentionAutoCreate: config.RetentionAutoCreate,
 		LoggingEnabled:      true,
@@ -117,9 +139,8 @@ func startService(config raftmeta.Config, t *fakeTransport, cb func(proposal *in
 	linearRead := raftmeta.NewLinearizabler(node)
 	go linearRead.ReadLoop()
 
-	service := raftmeta.NewMetaService(metaCli, node, linearRead)
+	service := raftmeta.NewMetaService(config.MyAddr, metaCli, node, linearRead)
 	service.WithLogger(log)
-	go service.Start(config.MyAddr)
 	return service
 }
 

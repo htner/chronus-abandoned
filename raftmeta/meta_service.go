@@ -23,6 +23,7 @@ type CommonResp struct {
 
 type MetaService struct {
 	Logger        *zap.Logger
+	Addr          string
 	Node          *RaftNode
 	cli           *imeta.Client
 	Linearizabler interface {
@@ -30,9 +31,10 @@ type MetaService struct {
 	}
 }
 
-func NewMetaService(cli *imeta.Client, node *RaftNode, l *Linearizabler) *MetaService {
+func NewMetaService(addr string, cli *imeta.Client, node *RaftNode, l *Linearizabler) *MetaService {
 	return &MetaService{
 		cli:           cli,
+		Addr:          addr,
 		Node:          node,
 		Linearizabler: l,
 	}
@@ -46,7 +48,7 @@ func (s *MetaService) Stop() {
 	s.Node.Stop()
 }
 
-func (s *MetaService) Start(addr string) {
+func (s *MetaService) InitRouter() {
 	http.HandleFunc("/message", func(w http.ResponseWriter, r *http.Request) {
 		s.Node.HandleMessage(w, r)
 	})
@@ -55,8 +57,10 @@ func (s *MetaService) Start(addr string) {
 	})
 
 	initHttpHandler(s)
+}
 
-	ipPort := strings.Split(addr, ":")
+func (s *MetaService) Start() {
+	ipPort := strings.Split(s.Addr, ":")
 	listenAddr := ":" + ipPort[1]
 	s.Logger.Info("listen:", zap.String("addr", listenAddr))
 	err := http.ListenAndServe(listenAddr, nil)
