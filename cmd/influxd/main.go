@@ -12,9 +12,7 @@ import (
 	"time"
 
 	"github.com/angopher/chronus/cmd"
-	"github.com/angopher/chronus/cmd/influxd/backup"
 	"github.com/angopher/chronus/cmd/influxd/help"
-	"github.com/angopher/chronus/cmd/influxd/restore"
 	"github.com/angopher/chronus/cmd/influxd/run"
 )
 
@@ -105,16 +103,6 @@ func (m *Main) Run(args ...string) error {
 
 		// goodbye.
 
-	case "backup":
-		name := backup.NewCommand()
-		if err := name.Run(args...); err != nil {
-			return fmt.Errorf("backup: %s", err)
-		}
-	case "restore":
-		name := restore.NewCommand()
-		if err := name.Run(args...); err != nil {
-			return fmt.Errorf("restore: %s", err)
-		}
 	case "config":
 		if err := run.NewPrintConfigCommand().Run(args...); err != nil {
 			return fmt.Errorf("config: %s", err)
