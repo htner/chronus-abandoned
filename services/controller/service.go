@@ -30,7 +30,7 @@ type Service struct {
 	Listener net.Listener
 	Logger   *zap.Logger
 
-	ShardManager interface {
+	ShardCarrier interface {
 		CopyShard(sourceAddr string, shardId uint64) error
 	}
 }
@@ -170,7 +170,7 @@ func (s *Service) handleCopyShard(conn net.Conn) error {
 		return err
 	}
 
-	s.ShardManager.CopyShard(req.SourceNodeAddr, req.ShardId)
+	s.ShardCarrier.CopyShard(req.SourceNodeAddr, req.ShardId)
 	return nil
 }
 
