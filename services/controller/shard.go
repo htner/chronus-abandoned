@@ -168,12 +168,17 @@ func (s *ShardCarrier) CopyShard(sourceAddr string, shardId uint64) error {
 	}
 
 	fmt.Println("----------- shard path:", path)
-	if err := s.unpackShard(tmpPath, path); err != nil {
-		return err
+	if _, err := os.Stat(tmpPath); err == nil || os.IsNotExist(err) {
+		if err := s.unpackTar(tmpPath, path); err != nil {
+			return err
+		}
 	}
 
-	if err := s.TSDBStore.CreateShard(db, rp, shardId, true); err != nil {
-		return err
+	sh := s.TSDBStore.Shard(shardId)
+	if sh == nil {
+		if err := s.TSDBStore.CreateShard(db, rp, shardId, true); err != nil {
+			return err
+		}
 	}
 
 	return s.MetaClient.AddShardOwner(shardId, s.Node.ID)
@@ -213,22 +218,9 @@ func (s *ShardCarrier) downloadAndVerify(req *snapshotter.Request, host, path st
 	return nil
 }
 
-func (s *ShardCarrier) unpackShard(restorePath, backupFile string) error {
-	if _, err := os.Stat(restorePath); err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("shard already present: %s", restorePath)
-	}
-
-	s.Logger.Sugar().Infof("Restoring offline from backup %s\n", backupFile)
-
-	if err := s.unpackTar(restorePath, backupFile); err != nil {
-		return err
-	}
-
-	return nil
-}
-
 // unpackTar will restore a single tar archive to the data dir
 func (s *ShardCarrier) unpackTar(tarFile, shardPath string) error {
+	s.Logger.Sugar().Infof("Restoring from backup %s\n", shardPath)
 	f, err := os.Open(tarFile)
 	if err != nil {
 		return err
