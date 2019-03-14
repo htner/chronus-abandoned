@@ -24,6 +24,7 @@ require (
 	github.com/klauspost/pgzip v1.2.1
 	github.com/pkg/errors v0.8.0
 	github.com/pkg/profile v1.2.1 // indirect
+	github.com/spf13/cobra v0.0.3
 	github.com/xlab/treeprint v0.0.0-20181112141820-a009c3971eca // indirect
 	go.opencensus.io v0.19.0 // indirect
 	go.uber.org/zap v1.9.1
