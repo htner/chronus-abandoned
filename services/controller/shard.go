@@ -23,9 +23,11 @@ import (
 )
 
 type shardCarryTask struct {
-	shardId uint64
-	source  string
-	closer  interface {
+	start       time.Time
+	shardId     uint64
+	source      string
+	destination string
+	closer      interface {
 		Close() error
 	}
 }

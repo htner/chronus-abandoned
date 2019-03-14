@@ -209,9 +209,9 @@ func (s *Service) handleShowCopyShard(conn net.Conn) []CopyShardTask {
 	var tasks []CopyShardTask
 	shardIds, sources := s.ShardCarrier.Query()
 	for i, id := range shardIds {
-		t := CopyShardTask {
+		t := CopyShardTask{
 			ShardID: id,
-			Source: sources[i],
+			Source:  sources[i],
 		}
 		tasks = append(tasks, t)
 	}
@@ -303,7 +303,7 @@ type CopyShardResponse struct {
 
 type CopyShardTask struct {
 	ShardID uint64 `json:"shard_id"`
-	Source string `json:"source"`
+	Source  string `json:"source"`
 }
 
 type ShowCopyShardResponse struct {
@@ -321,16 +321,16 @@ type RequestType byte
 const (
 	// RequestTruncateShard represents a request for truncating shard.
 	RequestTruncateShard RequestType = 1
-	RequestCopyShard = 2
-	RequestShowCopyShard = 3
-	RequestKillCopyShard = 4
+	RequestCopyShard                 = 2
+	RequestShowCopyShard             = 3
+	RequestKillCopyShard             = 4
 )
 
 type ResponseType byte
 
 const (
 	ResponseTruncateShard ResponseType = 1
-	ResponseCopyShard = 2
-	ResponseShowCopyShard = 3
-	ResponseKillCopyShard = 4
+	ResponseCopyShard                  = 2
+	ResponseShowCopyShard              = 3
+	ResponseKillCopyShard              = 4
 )
