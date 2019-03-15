@@ -177,7 +177,7 @@ func (s *Service) handleCopyShard(conn net.Conn) error {
 		return err
 	}
 
-	s.ShardCarrier.CopyShard(req.SourceNodeAddr, req.ShardId)
+	s.ShardCarrier.CopyShard(req.SourceNodeAddr, req.ShardID)
 	return nil
 }
 
@@ -294,7 +294,7 @@ type TruncateShardResponse struct {
 type CopyShardRequest struct {
 	SourceNodeAddr string `json:"source_node_address"`
 	DestNodeAddr   string `json:"dest_node_address"`
-	ShardId        uint64 `json:"shard_id"`
+	ShardID        uint64 `json:"shard_id"`
 }
 
 type CopyShardResponse struct {
