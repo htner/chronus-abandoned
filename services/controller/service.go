@@ -111,9 +111,9 @@ func (s *Service) handleConn(conn net.Conn) error {
 	case RequestCopyShard:
 		err = s.handleCopyShard(conn)
 		s.copyShardResponse(conn, err)
-	case RequestShowCopyShard:
-		tasks := s.handleShowCopyShard(conn)
-		s.showCopyShardResponse(conn, tasks)
+	case RequestCopyShardStatus:
+		tasks := s.handleCopyShardStatus(conn)
+		s.copyShardStatusResponse(conn, tasks)
 	case RequestKillCopyShard:
 		err = s.handleKillCopyShard(conn)
 		s.killCopyShardResponse(conn, err)
@@ -205,7 +205,7 @@ func (s *Service) copyShardResponse(w io.Writer, e error) {
 	}
 }
 
-func (s *Service) handleShowCopyShard(conn net.Conn) []CopyShardTask {
+func (s *Service) handleCopyShardStatus(conn net.Conn) []CopyShardTask {
 	var tasks []CopyShardTask
 	shardIds, sources := s.ShardCarrier.Query()
 	for i, id := range shardIds {
@@ -219,9 +219,9 @@ func (s *Service) handleShowCopyShard(conn net.Conn) []CopyShardTask {
 	return tasks
 }
 
-func (s *Service) showCopyShardResponse(w io.Writer, tasks []CopyShardTask) {
+func (s *Service) copyShardStatusResponse(w io.Writer, tasks []CopyShardTask) {
 	// Build response.
-	var resp ShowCopyShardResponse
+	var resp CopyShardStatusResponse
 	resp.Code = 0
 	resp.Msg = "ok"
 	resp.Tasks = tasks
@@ -234,7 +234,7 @@ func (s *Service) showCopyShardResponse(w io.Writer, tasks []CopyShardTask) {
 	}
 
 	// Write to connection.
-	if err := coordinator.WriteTLV(w, byte(ResponseShowCopyShard), buf); err != nil {
+	if err := coordinator.WriteTLV(w, byte(ResponseCopyShardStatus), buf); err != nil {
 		s.Logger.Error("show copy shard WriteTLV fail", zap.Error(err))
 	}
 }
@@ -257,7 +257,7 @@ func (s *Service) handleKillCopyShard(conn net.Conn) error {
 
 func (s *Service) killCopyShardResponse(w io.Writer, e error) {
 	// Build response.
-	var resp CommonResp
+	var resp KillCopyShardResponse
 	if e != nil {
 		resp.Code = 1
 		resp.Msg = e.Error()
@@ -306,13 +306,19 @@ type CopyShardTask struct {
 	Source  string `json:"source"`
 }
 
-type ShowCopyShardResponse struct {
+type CopyShardStatusResponse struct {
 	CommonResp
 	Tasks []CopyShardTask `json:"tasks"`
 }
 
 type KillCopyShardRequest struct {
-	ShardID uint64 `json:"shard_id"`
+	SourceNodeAddr string `json:"source_node_address"`
+	DestNodeAddr   string `json:"dest_node_address"`
+	ShardID        uint64 `json:"shard_id"`
+}
+
+type KillCopyShardResponse struct {
+	CommonResp
 }
 
 // RequestType indicates the typeof ctl request.
@@ -320,17 +326,17 @@ type RequestType byte
 
 const (
 	// RequestTruncateShard represents a request for truncating shard.
-	RequestTruncateShard RequestType = 1
-	RequestCopyShard                 = 2
-	RequestShowCopyShard             = 3
-	RequestKillCopyShard             = 4
+	RequestTruncateShard   RequestType = 1
+	RequestCopyShard                   = 2
+	RequestCopyShardStatus             = 3
+	RequestKillCopyShard               = 4
 )
 
 type ResponseType byte
 
 const (
-	ResponseTruncateShard ResponseType = 1
-	ResponseCopyShard                  = 2
-	ResponseShowCopyShard              = 3
-	ResponseKillCopyShard              = 4
+	ResponseTruncateShard   ResponseType = 1
+	ResponseCopyShard                    = 2
+	ResponseCopyShardStatus              = 3
+	ResponseKillCopyShard                = 4
 )

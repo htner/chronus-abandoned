@@ -30,34 +30,91 @@ func CopyShard(srcAddr, dstAddr, shardID string) error {
 		ShardID:        id,
 	}
 
-	buf, _ := json.Marshal(req)
-	err = coordinator.WriteTLV(conn, byte(controller.RequestCopyShard), buf)
+	var resp controller.CopyShardResponse
+	respTyp := byte(controller.ResponseCopyShard)
+	reqTyp := byte(controller.RequestCopyShard)
+	if err := RequestAndWaitResp(conn, reqTyp, respTyp, req, &resp); err != nil {
+		return err
+	}
+
+	fmt.Println(resp.Msg)
+	return nil
+}
+
+func TruncateShards(delaySec int64, host string) error {
+	conn, err := Dial(host)
 	if err != nil {
 		return err
 	}
+	defer conn.Close()
 
-	var resp controller.CopyShardResponse
-	if err := DecodeTLV(conn, byte(controller.ResponseCopyShard), &resp); err != nil {
+	req := &controller.TruncateShardRequest{DelaySec: delaySec}
+	reqTyp := byte(controller.RequestTruncateShard)
+
+	respTyp := byte(controller.ResponseTruncateShard)
+	var resp controller.CopyShardStatusResponse
+	if err := RequestAndWaitResp(conn, reqTyp, respTyp, req, &resp); err != nil {
 		return err
 	}
 
-	if resp.Code != 0 {
-		fmt.Println("failed:", resp.Msg)
+	fmt.Println(resp.Msg)
+	return nil
+}
+
+func CopyShardStatus(host string) error {
+	conn, err := Dial(host)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	var resp controller.CopyShardStatusResponse
+	respTyp := byte(controller.ResponseCopyShardStatus)
+	reqTyp := byte(controller.RequestCopyShardStatus)
+	if err := RequestAndWaitResp(conn, reqTyp, respTyp, struct{}{}, &resp); err != nil {
+		return err
 	}
 
-	return nil
-}
-
-func TruncateShards(delaySec int) error {
-	return nil
-}
-
-func CopyShardStatus() error {
+	fmt.Printf("%+v\n", resp)
 	return nil
 }
 
 func KillCopyShard(srcAddr, dstAddr, shardID string) error {
+	id, err := strconv.ParseUint(shardID, 10, 64)
+	if err != nil {
+		return err
+	}
+
+	conn, err := Dial(dstAddr)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	req := &controller.KillCopyShardRequest{
+		SourceNodeAddr: srcAddr,
+		DestNodeAddr:   dstAddr,
+		ShardID:        id,
+	}
+
+	var resp controller.KillCopyShardResponse
+	respTyp := byte(controller.ResponseKillCopyShard)
+	reqTyp := byte(controller.RequestKillCopyShard)
+	if err := RequestAndWaitResp(conn, reqTyp, respTyp, req, &resp); err != nil {
+		return err
+	}
+
+	fmt.Println(resp.Msg)
 	return nil
+}
+
+func RequestAndWaitResp(r io.ReadWriter, reqTyp, respTyp byte, req interface{}, resp interface{}) error {
+	buf, _ := json.Marshal(req)
+	if err := coordinator.WriteTLV(r, reqTyp, buf); err != nil {
+		return err
+	}
+
+	return DecodeTLV(r, respTyp, resp)
 }
 
 func DecodeTLV(r io.Reader, expTyp byte, v interface{}) error {
