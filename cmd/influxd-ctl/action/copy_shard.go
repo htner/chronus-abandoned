@@ -41,7 +41,12 @@ func CopyShard(srcAddr, dstAddr, shardID string) error {
 	return nil
 }
 
-func TruncateShards(delaySec int64, host string) error {
+func TruncateShards(delay string, host string) error {
+	delaySec, err := strconv.ParseInt(delay, 10, 64)
+	if err != nil {
+		return err
+	}
+
 	conn, err := Dial(host)
 	if err != nil {
 		return err

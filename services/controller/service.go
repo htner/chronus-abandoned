@@ -32,7 +32,7 @@ type Service struct {
 
 	ShardCarrier interface {
 		CopyShard(sourceAddr string, shardId uint64) error
-		Query() ([]uint64, []string)
+		Query() []CopyShardTask
 		Kill(shardId uint64)
 	}
 }
@@ -206,17 +206,7 @@ func (s *Service) copyShardResponse(w io.Writer, e error) {
 }
 
 func (s *Service) handleCopyShardStatus(conn net.Conn) []CopyShardTask {
-	var tasks []CopyShardTask
-	shardIds, sources := s.ShardCarrier.Query()
-	for i, id := range shardIds {
-		t := CopyShardTask{
-			ShardID: id,
-			Source:  sources[i],
-		}
-		tasks = append(tasks, t)
-	}
-
-	return tasks
+	return s.ShardCarrier.Query()
 }
 
 func (s *Service) copyShardStatusResponse(w io.Writer, tasks []CopyShardTask) {
@@ -302,8 +292,13 @@ type CopyShardResponse struct {
 }
 
 type CopyShardTask struct {
-	ShardID uint64 `json:"shard_id"`
-	Source  string `json:"source"`
+	Database    string `json:"database"`
+	Rp          string `json:"retention_policy"`
+	ShardID     uint64 `json:"shard_id"`
+	TotalSize   uint64 `json:"total_size"`
+	CurrentSize uint64 `json:"current_size"`
+	Source      string `json:"source"`
+	Destination string `json:"destination"`
 }
 
 type CopyShardStatusResponse struct {

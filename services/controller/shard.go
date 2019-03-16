@@ -24,6 +24,10 @@ import (
 
 type shardCarryTask struct {
 	start       time.Time
+	db          string
+	rp          string
+	totalSize   uint64
+	currentSize uint64
 	shardId     uint64
 	source      string
 	destination string
@@ -73,15 +77,17 @@ func (c *carryManager) Tasks() []*shardCarryTask {
 	return tasks
 }
 
-func (c *carryManager) Kill(id uint64) {
+func (c *carryManager) Kill(id uint64, source, dest string) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	t, ok := c.tasks[id]
 	if !ok {
 		return
 	}
-	t.closer.Close()
-	delete(c.tasks, id)
+	if source == t.source && dest == t.destination {
+		t.closer.Close()
+		delete(c.tasks, id)
+	}
 }
 
 type ShardCarrier struct {
@@ -115,15 +121,22 @@ func fileExists(fileName string) bool {
 	return err == nil
 }
 
-func (s *ShardCarrier) Query() ([]uint64, []string) {
-	var shardIds []uint64
-	var sources []string
+func (s *ShardCarrier) Query() []CopyShardTask {
+	var ts []CopyShardTask
 	tasks := s.manager.Tasks()
 	for _, t := range tasks {
-		shardIds = append(shardIds, t.shardId)
-		sources = append(sources, t.source)
+		task := CopyShardTask{
+			Database:    t.db,
+			Rp:          t.rp,
+			ShardID:     t.shardId,
+			TotalSize:   t.totalSize,
+			CurrentSize: t.currentSize,
+			Source:      t.source,
+			Destination: t.destination,
+		}
+		ts = append(ts, task)
 	}
-	return shardIds, sources
+	return ts
 }
 
 func (s *ShardCarrier) Kill(shardId uint64) {
@@ -260,6 +273,7 @@ func (s *ShardCarrier) download(req *snapshotter.Request, host, path string) err
 			s.manager.Add(task)
 			defer s.manager.Remove(task.shardId)
 
+			// Write the request type
 			_, err = conn.Write([]byte{byte(req.Type)})
 			if err != nil {
 				return err
@@ -271,6 +285,8 @@ func (s *ShardCarrier) download(req *snapshotter.Request, host, path string) err
 			}
 
 			// Read snapshot from the connection
+			//TODO: 1.Rate limit?
+			//      2.How to get progress?
 			if n, err := io.Copy(f, conn); err != nil || n == 0 {
 				return fmt.Errorf("copy backup to file: err=%v, n=%d", err, n)
 			}
