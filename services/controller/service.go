@@ -3,14 +3,18 @@ package controller
 
 import (
 	"encoding/json"
-	"github.com/angopher/chronus/coordinator"
-	"github.com/influxdata/influxdb"
-	"go.uber.org/zap"
+	"fmt"
 	"io"
 	"net"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/services/meta"
+	"go.uber.org/zap"
+
+	"github.com/angopher/chronus/coordinator"
 )
 
 const (
@@ -25,6 +29,13 @@ type Service struct {
 
 	MetaClient interface {
 		TruncateShardGroups(t time.Time) error
+		DeleteDataNode(id uint64) error
+		DataNodeByTCPHost(addr string) (*meta.NodeInfo, error)
+		RemoveShardOwner(shardID, nodeID uint64) error
+	}
+
+	TSDBStore interface {
+		DeleteShard(id uint64) error
 	}
 
 	Listener net.Listener
@@ -269,6 +280,58 @@ func (s *Service) killCopyShardResponse(w io.Writer, e error) {
 	}
 }
 
+func (s *Service) handleRemoveShard(conn net.Conn) error {
+	buf, err := coordinator.ReadLV(conn)
+	if err != nil {
+		s.Logger.Error("unable to read length-value", zap.Error(err))
+		return err
+	}
+
+	var req RemoveShardRequest
+	if err := json.Unmarshal(buf, &req); err != nil {
+		return err
+	}
+
+	ni, err := s.MetaClient.DataNodeByTCPHost(req.DataNodeAddr)
+	if err != nil {
+		return err
+	} else if ni == nil {
+		return fmt.Errorf("not find data node by addr:%s", req.DataNodeAddr)
+	}
+
+	if s.Node.ID == ni.ID {
+		if err := s.TSDBStore.DeleteShard(req.ShardID); err != nil {
+			return err
+		}
+		return s.MetaClient.RemoveShardOwner(req.ShardID, ni.ID)
+	} else {
+		//TODO:Forward to req.DataNodeAddr
+	}
+	return nil
+}
+
+func (s *Service) handleRemoveDataNode(conn net.Conn) error {
+	buf, err := coordinator.ReadLV(conn)
+	if err != nil {
+		s.Logger.Error("unable to read length-value", zap.Error(err))
+		return err
+	}
+
+	var req RemoveDataNodeRequest
+	if err := json.Unmarshal(buf, &req); err != nil {
+		return err
+	}
+
+	ni, err := s.MetaClient.DataNodeByTCPHost(req.DataNodeAddr)
+	if err != nil {
+		return err
+	} else if ni == nil {
+		return fmt.Errorf("not find data node by addr:%s", req.DataNodeAddr)
+	}
+
+	return s.MetaClient.DeleteDataNode(ni.ID)
+}
+
 type CommonResp struct {
 	Code int    `json:"code"`
 	Msg  string `json:"msg"`
@@ -316,6 +379,23 @@ type KillCopyShardResponse struct {
 	CommonResp
 }
 
+type RemoveShardRequest struct {
+	DataNodeAddr string `json:"data_node_addr"`
+	ShardID      uint64 `json:"shard_id"`
+}
+
+type RemoveShardResponse struct {
+	CommonResp
+}
+
+type RemoveDataNodeRequest struct {
+	DataNodeAddr string `json:"data_node_addr"`
+}
+
+type RemoveDataNodeResponse struct {
+	CommonResp
+}
+
 // RequestType indicates the typeof ctl request.
 type RequestType byte
 
@@ -325,6 +405,8 @@ const (
 	RequestCopyShard                   = 2
 	RequestCopyShardStatus             = 3
 	RequestKillCopyShard               = 4
+	RequestRemoveShard                 = 5
+	RequestRemoveDataNode              = 6
 )
 
 type ResponseType byte
@@ -334,4 +416,6 @@ const (
 	ResponseCopyShard                    = 2
 	ResponseCopyShardStatus              = 3
 	ResponseKillCopyShard                = 4
+	ResponseRemoveShard                  = 5
+	ResponseRemoveDataNode               = 6
 )

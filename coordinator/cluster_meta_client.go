@@ -133,6 +133,13 @@ func (me *ClusterMetaClient) AddShardOwner(shardID, nodeID uint64) error {
 	return me.cache.AddShardOwner(shardID, nodeID)
 }
 
+func (me *ClusterMetaClient) RemoveShardOwner(shardID, nodeID uint64) error {
+	if err := me.metaCli.RemoveShardOwner(shardID, nodeID); err != nil {
+		return err
+	}
+	return me.cache.RemoveShardOwner(shardID, nodeID)
+}
+
 func (me *ClusterMetaClient) CreateShardGroup(database, policy string, timestamp time.Time) (*meta.ShardGroupInfo, error) {
 	if sg := me.cache.ShardGroupByTimestamp(database, policy, timestamp); sg != nil {
 		return sg, nil
@@ -342,4 +349,8 @@ func (me *ClusterMetaClient) Users() []meta.UserInfo {
 
 func (me *ClusterMetaClient) User(name string) (meta.User, error) {
 	return me.cache.User(name)
+}
+
+func (me *ClusterMetaClient) DataNodeByTCPHost(addr string) (*meta.NodeInfo, error) {
+	return me.cache.DataNodeByTCPHost(addr)
 }

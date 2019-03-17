@@ -753,6 +753,11 @@ func (c *Client) AddShardOwner(shardID uint64, nodeID uint64) error {
 	return c.commit(data)
 }
 
+func (c *Client) RemoveShardOwner(shardID uint64, nodeID uint64) error {
+	//TODO
+	return nil
+}
+
 // DropShard deletes a shard by ID.
 func (c *Client) DropShard(id uint64) error {
 	c.mu.Lock()

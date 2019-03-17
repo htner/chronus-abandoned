@@ -133,6 +133,11 @@ func (me *MetaClientImpl) AddShardOwner(shardID, nodeID uint64) error {
 	return nil
 }
 
+func (me *MetaClientImpl) RemoveShardOwner(shardID, nodeID uint64) error {
+	//TODO:
+	return nil
+}
+
 func (me *MetaClientImpl) CreateShardGroup(database, policy string, timestamp time.Time) (*meta.ShardGroupInfo, error) {
 	req := raftmeta.CreateShardGroupReq{
 		Database:  database,
