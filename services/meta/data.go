@@ -397,3 +397,24 @@ func (data *Data) CreateShardGroup(database, policy string, timestamp time.Time)
 
 	return nil
 }
+
+func (data *Data) AddShardOwner(id, nodeID uint64) {
+	for dbidx, dbi := range data.Databases {
+		for rpidx, rpi := range dbi.RetentionPolicies {
+			for sgidx, sg := range rpi.ShardGroups {
+				for sidx, s := range sg.Shards {
+					if s.ID == id {
+						for _, owner := range s.Owners {
+							if owner.NodeID == nodeID {
+								return
+							}
+						}
+						s.Owners = append(s.Owners, meta.ShardOwner{NodeID: nodeID})
+						data.Databases[dbidx].RetentionPolicies[rpidx].ShardGroups[sgidx].Shards[sidx] = s
+						return
+					}
+				}
+			}
+		}
+	}
+}

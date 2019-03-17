@@ -28,4 +28,5 @@ const (
 	DATA_PATH                                  = "/data"
 	PING_PATH                                  = "/ping"
 	ACQUIRE_LEASE_PATH                         = "/acquire_lease"
+	ADD_SHARD_OWNER                            = "/add_shard_owner"
 )

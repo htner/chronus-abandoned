@@ -744,6 +744,15 @@ func (c *Client) ShardsByTimeRange(sources influxql.Sources, tmin, tmax time.Tim
 	return a, nil
 }
 
+func (c *Client) AddShardOwner(shardID uint64, nodeID uint64) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	data := c.cacheData.Clone()
+	data.AddShardOwner(shardID, nodeID)
+	return c.commit(data)
+}
+
 // DropShard deletes a shard by ID.
 func (c *Client) DropShard(id uint64) error {
 	c.mu.Lock()

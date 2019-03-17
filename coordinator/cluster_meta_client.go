@@ -126,6 +126,13 @@ func (me *ClusterMetaClient) Database(name string) *meta.DatabaseInfo {
 	return me.cache.Database(name)
 }
 
+func (me *ClusterMetaClient) AddShardOwner(shardID, nodeID uint64) error {
+	if err := me.metaCli.AddShardOwner(shardID, nodeID); err != nil {
+		return err
+	}
+	return me.cache.AddShardOwner(shardID, nodeID)
+}
+
 func (me *ClusterMetaClient) CreateShardGroup(database, policy string, timestamp time.Time) (*meta.ShardGroupInfo, error) {
 	if sg := me.cache.ShardGroupByTimestamp(database, policy, timestamp); sg != nil {
 		return sg, nil

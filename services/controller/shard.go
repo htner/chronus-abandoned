@@ -22,7 +22,7 @@ import (
 	"go.uber.org/zap"
 )
 
-type shardCarryTask struct {
+type ShardCopyTask struct {
 	start       time.Time
 	db          string
 	rp          string
@@ -36,20 +36,20 @@ type shardCarryTask struct {
 	}
 }
 
-type carryManager struct {
+type ShardCopyManager struct {
 	mutex      sync.Mutex
-	tasks      map[uint64]*shardCarryTask
+	tasks      map[uint64]*ShardCopyTask
 	maxRunning int
 }
 
-func NewCarryManager(max int) *carryManager {
-	return &carryManager{
+func NewCopyManager(max int) *ShardCopyManager {
+	return &ShardCopyManager{
 		maxRunning: max,
-		tasks:      make(map[uint64]*shardCarryTask),
+		tasks:      make(map[uint64]*ShardCopyTask),
 	}
 }
 
-func (c *carryManager) Add(task *shardCarryTask) error {
+func (c *ShardCopyManager) Add(task *ShardCopyTask) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	_, ok := c.tasks[task.shardId]
@@ -60,24 +60,24 @@ func (c *carryManager) Add(task *shardCarryTask) error {
 	return nil
 }
 
-func (c *carryManager) Remove(id uint64) {
+func (c *ShardCopyManager) Remove(id uint64) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	delete(c.tasks, id)
 	return
 }
 
-func (c *carryManager) Tasks() []*shardCarryTask {
+func (c *ShardCopyManager) Tasks() []*ShardCopyTask {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
-	var tasks []*shardCarryTask
+	var tasks []*ShardCopyTask
 	for _, task := range c.tasks {
 		tasks = append(tasks, task)
 	}
 	return tasks
 }
 
-func (c *carryManager) Kill(id uint64, source, dest string) {
+func (c *ShardCopyManager) Kill(id uint64, source, dest string) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	t, ok := c.tasks[id]
@@ -90,14 +90,14 @@ func (c *carryManager) Kill(id uint64, source, dest string) {
 	}
 }
 
-type ShardCarrier struct {
+type ShardCopier struct {
 	Node    *influxdb.Node
 	Logger  *zap.Logger
-	manager interface {
-		Add(task *shardCarryTask) error
+	Manager interface {
+		Add(task *ShardCopyTask) error
 		Remove(id uint64)
-		Tasks() []*shardCarryTask
-		Kill(id uint64)
+		Tasks() []*ShardCopyTask
+		Kill(id uint64, source, dest string)
 	}
 
 	MetaClient interface {
@@ -112,8 +112,8 @@ type ShardCarrier struct {
 	}
 }
 
-func (s *ShardCarrier) WithLogger(log *zap.Logger) {
-	s.Logger = log.With(zap.String("service", "ShardCarrier"))
+func (s *ShardCopier) WithLogger(log *zap.Logger) {
+	s.Logger = log.With(zap.String("service", "Controller.ShardCopier"))
 }
 
 func fileExists(fileName string) bool {
@@ -121,9 +121,9 @@ func fileExists(fileName string) bool {
 	return err == nil
 }
 
-func (s *ShardCarrier) Query() []CopyShardTask {
+func (s *ShardCopier) Query() []CopyShardTask {
 	var ts []CopyShardTask
-	tasks := s.manager.Tasks()
+	tasks := s.Manager.Tasks()
 	for _, t := range tasks {
 		task := CopyShardTask{
 			Database:    t.db,
@@ -139,11 +139,11 @@ func (s *ShardCarrier) Query() []CopyShardTask {
 	return ts
 }
 
-func (s *ShardCarrier) Kill(shardId uint64) {
-	s.manager.Kill(shardId)
+func (s *ShardCopier) Kill(shardId uint64, source, destination string) {
+	s.Manager.Kill(shardId, source, destination)
 }
 
-func (s *ShardCarrier) CopyShard(sourceAddr string, shardId uint64) error {
+func (s *ShardCopier) CopyShard(sourceAddr string, shardId uint64) error {
 	// 1.检查本地是否已经存在shard
 	// 2.检查是否可以进行此shard的copy任务: 任务管理器
 	// 3.检查本地是否有残留的脏数据, 并清理掉
@@ -199,7 +199,7 @@ func (s *ShardCarrier) CopyShard(sourceAddr string, shardId uint64) error {
 	return s.MetaClient.AddShardOwner(shardId, s.Node.ID)
 }
 
-func (s *ShardCarrier) downloadAndVerify(req *snapshotter.Request, host, path string, validator func(string) error) error {
+func (s *ShardCopier) downloadAndVerify(req *snapshotter.Request, host, path string, validator func(string) error) error {
 	tmppath := path + backup_util.Suffix
 	if err := s.download(req, host, tmppath); err != nil {
 		os.Remove(tmppath)
@@ -234,7 +234,7 @@ func (s *ShardCarrier) downloadAndVerify(req *snapshotter.Request, host, path st
 }
 
 // unpackTar will restore a single tar archive to the data dir
-func (s *ShardCarrier) unpackTar(tarFile, shardPath string) error {
+func (s *ShardCopier) unpackTar(tarFile, shardPath string) error {
 	s.Logger.Sugar().Infof("Restoring from backup %s\n", shardPath)
 	f, err := os.Open(tarFile)
 	if err != nil {
@@ -247,7 +247,7 @@ func (s *ShardCarrier) unpackTar(tarFile, shardPath string) error {
 	return tarstream.Restore(f, shardPath)
 }
 
-func (s *ShardCarrier) download(req *snapshotter.Request, host, path string) error {
+func (s *ShardCopier) download(req *snapshotter.Request, host, path string) error {
 	// Create local file to write to.
 	f, err := os.Create(path)
 	if err != nil {
@@ -265,13 +265,13 @@ func (s *ShardCarrier) download(req *snapshotter.Request, host, path string) err
 			}
 			defer conn.Close()
 
-			task := &shardCarryTask{
+			task := &ShardCopyTask{
 				shardId: req.ShardID,
 				source:  host,
 				closer:  conn,
 			}
-			s.manager.Add(task)
-			defer s.manager.Remove(task.shardId)
+			s.Manager.Add(task)
+			defer s.Manager.Remove(task.shardId)
 
 			// Write the request type
 			_, err = conn.Write([]byte{byte(req.Type)})

@@ -115,6 +115,24 @@ func (me *MetaClientImpl) DeleteDataNode(id uint64) error {
 	return nil
 }
 
+func (me *MetaClientImpl) AddShardOwner(shardID, nodeID uint64) error {
+	req := raftmeta.AddShardOwnerReq{
+		ShardID: shardID,
+		NodeID:  nodeID,
+	}
+
+	var resp raftmeta.AddShardOwnerResp
+	err := RequestAndParseResponse(me.Url(raftmeta.ADD_SHARD_OWNER), &req, &resp)
+	if err != nil {
+		return err
+	}
+
+	if resp.RetCode != 0 {
+		return errors.New(resp.RetMsg)
+	}
+	return nil
+}
+
 func (me *MetaClientImpl) CreateShardGroup(database, policy string, timestamp time.Time) (*meta.ShardGroupInfo, error) {
 	req := raftmeta.CreateShardGroupReq{
 		Database:  database,

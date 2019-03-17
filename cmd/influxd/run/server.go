@@ -42,6 +42,7 @@ import (
 	_ "github.com/influxdata/influxdb/tsdb/index"
 
 	"github.com/angopher/chronus/coordinator"
+	"github.com/angopher/chronus/services/controller"
 	"github.com/angopher/chronus/services/hh"
 	imeta "github.com/angopher/chronus/services/meta"
 )
@@ -75,7 +76,6 @@ type Server struct {
 	Logger *zap.Logger
 
 	Node              *influxdb.Node
-	MetaClient        *imeta.Client
 	ClusterMetaClient *coordinator.ClusterMetaClient
 
 	TSDBStore     *tsdb.Store
@@ -90,6 +90,7 @@ type Server struct {
 	// These references are required for the tcp muxer.
 	SnapshotterService *snapshotter.Service
 	ClusterService     *coordinator.Service
+	ControllerService  *controller.Service
 
 	Monitor *monitor.Monitor
 
@@ -187,7 +188,6 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 
 		Logger: logger.New(os.Stderr),
 
-		MetaClient:        imeta.NewClient(c.Meta),
 		ClusterMetaClient: coordinator.NewMetaClient(c.Meta, c.Coordinator, nodeID),
 
 		reportingDisabled: c.ReportingDisabled,
@@ -201,10 +201,6 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 	s.ClusterMetaClient.WithLogger(s.Logger)
 	s.Monitor = monitor.New(s, c.Monitor)
 	s.config.registerDiagnostics(s.Monitor)
-
-	if err := s.MetaClient.Open(); err != nil {
-		return nil, err
-	}
 
 	if err := s.ClusterMetaClient.Open(); err != nil {
 		return nil, err
@@ -442,6 +438,26 @@ func (s *Server) appendContinuousQueryService(c continuous_querier.Config) {
 	s.Services = append(s.Services, srv)
 }
 
+func (s *Server) appendControllerService(c controller.Config) {
+	if !c.Enabled {
+		return
+	}
+	srv := controller.NewService(c)
+	srv.MetaClient = s.ClusterMetaClient
+	srv.Node = s.Node
+	shardCopier := &controller.ShardCopier{
+		Manager:    controller.NewCopyManager(c.MaxShardCopyTasks),
+		MetaClient: s.ClusterMetaClient,
+		TSDBStore:  s.TSDBStore,
+		Node:       s.Node,
+	}
+	shardCopier.WithLogger(s.Logger)
+
+	srv.ShardCopier = shardCopier
+	s.ControllerService = srv
+	s.Services = append(s.Services, srv)
+}
+
 // Err returns an error channel that multiplexes all out of band errors received from all services.
 func (s *Server) Err() <-chan error { return s.err }
 
@@ -493,11 +509,9 @@ func (s *Server) Open() error {
 
 	s.ClusterService.Listener = mux.Listen(coordinator.MuxHeader)
 	s.SnapshotterService.Listener = mux.Listen(snapshotter.MuxHeader)
+	s.ControllerService.Listener = mux.Listen(controller.MuxHeader)
 
 	// Configure logging for all services and clients.
-	if s.config.Meta.LoggingEnabled {
-		s.MetaClient.WithLogger(s.Logger)
-	}
 	s.TSDBStore.WithLogger(s.Logger)
 	if s.config.Data.QueryLogEnabled {
 		s.QueryExecutor.WithLogger(s.Logger)
@@ -579,10 +593,6 @@ func (s *Server) Close() error {
 
 	if s.Subscriber != nil {
 		s.Subscriber.Close()
-	}
-
-	if s.MetaClient != nil {
-		s.MetaClient.Close()
 	}
 
 	close(s.closing)

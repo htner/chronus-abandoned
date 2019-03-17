@@ -31,6 +31,7 @@ import (
 	"golang.org/x/text/transform"
 
 	"github.com/angopher/chronus/coordinator"
+	"github.com/angopher/chronus/services/controller"
 	"github.com/angopher/chronus/services/hh"
 )
 
@@ -58,6 +59,7 @@ type Config struct {
 
 	ContinuousQuery continuous_querier.Config `toml:"continuous_queries"`
 	HintedHandoff   hh.Config                 `toml:"hinted-handoff"`
+	Controller      controller.Config         `toml:"controller"`
 
 	// Server reporting
 	ReportingDisabled bool `toml:"reporting-disabled"`
@@ -83,6 +85,7 @@ func NewConfig() *Config {
 	c.Logging = logger.NewConfig()
 
 	c.HintedHandoff = hh.NewConfig()
+	c.Controller = controller.NewConfig()
 
 	c.GraphiteInputs = []graphite.Config{graphite.NewConfig()}
 	c.CollectdInputs = []collectd.Config{collectd.NewConfig()}

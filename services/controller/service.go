@@ -30,15 +30,15 @@ type Service struct {
 	Listener net.Listener
 	Logger   *zap.Logger
 
-	ShardCarrier interface {
+	ShardCopier interface {
 		CopyShard(sourceAddr string, shardId uint64) error
 		Query() []CopyShardTask
-		Kill(shardId uint64)
+		Kill(shardId uint64, source, destination string)
 	}
 }
 
 // NewService returns a new instance of Service.
-func NewService() *Service {
+func NewService(c Config) *Service {
 	return &Service{
 		Logger: zap.NewNop(),
 	}
@@ -66,7 +66,7 @@ func (s *Service) Close() error {
 
 // WithLogger sets the logger on the service.
 func (s *Service) WithLogger(log *zap.Logger) {
-	s.Logger = log.With(zap.String("service", "ctl"))
+	s.Logger = log.With(zap.String("service", "controller"))
 }
 
 // serve serves snapshot requests from the listener.
@@ -177,7 +177,7 @@ func (s *Service) handleCopyShard(conn net.Conn) error {
 		return err
 	}
 
-	s.ShardCarrier.CopyShard(req.SourceNodeAddr, req.ShardID)
+	s.ShardCopier.CopyShard(req.SourceNodeAddr, req.ShardID)
 	return nil
 }
 
@@ -206,7 +206,7 @@ func (s *Service) copyShardResponse(w io.Writer, e error) {
 }
 
 func (s *Service) handleCopyShardStatus(conn net.Conn) []CopyShardTask {
-	return s.ShardCarrier.Query()
+	return s.ShardCopier.Query()
 }
 
 func (s *Service) copyShardStatusResponse(w io.Writer, tasks []CopyShardTask) {
@@ -241,7 +241,7 @@ func (s *Service) handleKillCopyShard(conn net.Conn) error {
 		return err
 	}
 
-	s.ShardCarrier.Kill(req.ShardID)
+	s.ShardCopier.Kill(req.ShardID, req.SourceNodeAddr, req.DestNodeAddr)
 	return nil
 }
 

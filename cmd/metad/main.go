@@ -30,10 +30,12 @@ func main() {
 		RetentionAutoCreate: config.RetentionAutoCreate,
 		LoggingEnabled:      true,
 	})
-	err := metaCli.Open()
-	x.Check(err)
 
 	log := logger.New(os.Stderr)
+
+	metaCli.WithLogger(log)
+	err := metaCli.Open()
+	x.Check(err)
 
 	node := raftmeta.NewRaftNode(config)
 	node.MetaCli = metaCli
@@ -50,7 +52,7 @@ func main() {
 	go linearRead.ReadLoop()
 
 	service := raftmeta.NewMetaService(config.MyAddr, metaCli, node, linearRead)
-    service.InitRouter()
+	service.InitRouter()
 	service.WithLogger(log)
 	service.Start()
 }
