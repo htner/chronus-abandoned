@@ -25,6 +25,7 @@ type MetaClient interface {
 	DeleteShardGroup(database, policy string, id uint64) error
 	PrecreateShardGroups(from, to time.Time) error
 
+	AddShardOwner(shardID, nodeID uint64) error
 	DropShard(id uint64) error
 	DropContinuousQuery(database, name string) error
 	DropDatabase(name string) error
