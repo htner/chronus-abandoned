@@ -35,6 +35,7 @@ const (
 	CreateChecksumMsg                 = 28
 	VerifyChecksumMsg                 = 29
 	AddShardOwner                     = 30
+	RemoveShardOwner                  = 31
 )
 
 var MessageTypeName = map[int]string{
@@ -68,6 +69,7 @@ var MessageTypeName = map[int]string{
 	28: "CreateChecksumMsg",
 	29: "VerifyChecksumMsg",
 	30: "AddShardOwner",
+	31: "RemoveShardOwner",
 }
 
 type Proposal struct {

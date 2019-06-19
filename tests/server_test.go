@@ -73,21 +73,6 @@ func TestMain(m *testing.M) {
 
 // Ensure that HTTP responses include the InfluxDB version.
 func TestServer_HTTPResponseVersion(t *testing.T) {
-	//TODO:ignore tmp
-	return
-	if RemoteEnabled() {
-		t.Skip("Skipping.  Cannot change version of remote server")
-	}
-
-	version := "v1234"
-	s := OpenServerWithVersion(NewConfig(), version)
-	//defer s.Close()
-
-	resp, _ := http.Get(s.URL() + "/query")
-	got := resp.Header.Get("X-Influxdb-Version")
-	if got != version {
-		t.Errorf("Server responded with incorrect version, exp %s, got %s", version, got)
-	}
 }
 
 // Ensure the database commands work.

@@ -754,8 +754,12 @@ func (c *Client) AddShardOwner(shardID uint64, nodeID uint64) error {
 }
 
 func (c *Client) RemoveShardOwner(shardID uint64, nodeID uint64) error {
-	//TODO
-	return nil
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	data := c.cacheData.Clone()
+	data.RemoveShardOwner(shardID, nodeID)
+	return c.commit(data)
 }
 
 // DropShard deletes a shard by ID.

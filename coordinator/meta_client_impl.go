@@ -134,7 +134,20 @@ func (me *MetaClientImpl) AddShardOwner(shardID, nodeID uint64) error {
 }
 
 func (me *MetaClientImpl) RemoveShardOwner(shardID, nodeID uint64) error {
-	//TODO:
+	req := raftmeta.RemoveShardOwnerReq{
+		ShardID: shardID,
+		NodeID:  nodeID,
+	}
+
+	var resp raftmeta.RemoveShardOwnerResp
+	err := RequestAndParseResponse(me.Url(raftmeta.REMOVE_SHARD_OWNER), &req, &resp)
+	if err != nil {
+		return err
+	}
+
+	if resp.RetCode != 0 {
+		return errors.New(resp.RetMsg)
+	}
 	return nil
 }
 

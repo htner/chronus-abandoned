@@ -71,11 +71,13 @@ github.com/dgraph-io/badger v1.5.4 h1:gVTrpUTbbr/T24uvoCaqY2KSHfNLVGm0w+hbee2HMe
 github.com/dgraph-io/badger v1.5.4/go.mod h1:VZxzAIRPHRVNRKRo6AXrX9BJegn6il06VMTZVJYCIjQ=
 github.com/dgraph-io/badger v1.5.5-0.20181126210712-49a49e321746 h1:cd1s0THXu7KWnykg7V07VSiTde/g38d8PJBTXBaq0mk=
 github.com/dgraph-io/badger v1.5.5-0.20181126210712-49a49e321746/go.mod h1:VZxzAIRPHRVNRKRo6AXrX9BJegn6il06VMTZVJYCIjQ=
+github.com/dgraph-io/dgo v0.0.0-20190201214300-d5a1729ba705 h1:f2knGDNK8Q5y9D8rKdACl7qviC4jonzug90y4TNaRxU=
 github.com/dgraph-io/dgo v0.0.0-20190201214300-d5a1729ba705/go.mod h1:/3OtwVvGnHiyXL9bWTjZaHQk4cp8rakX6jVBFoykWaA=
 github.com/dgraph-io/dgraph v1.0.0 h1:WHKwIE3M0ik+0lciA1PdfEdZg4AmfpOZ0hWPtKASMII=
 github.com/dgraph-io/dgraph v1.0.0/go.mod h1:Qx1vy3ocQ5/Q66iKt6KcFADD3VUncMHuVaNF0sgr9js=
 github.com/dgraph-io/dgraph v1.0.6 h1:BA2BtxkymfYtyxSrShbesdkDdzhYRQ14ChoWJ8gH8xM=
 github.com/dgraph-io/dgraph v1.0.6/go.mod h1:Qx1vy3ocQ5/Q66iKt6KcFADD3VUncMHuVaNF0sgr9js=
+github.com/dgraph-io/dgraph v1.0.11 h1:An8I4+pG7e6n3evXXZsB4E6f3PUc9+0ynBRVCivb8f4=
 github.com/dgraph-io/dgraph v1.0.11/go.mod h1:Qx1vy3ocQ5/Q66iKt6KcFADD3VUncMHuVaNF0sgr9js=
 github.com/dgrijalva/jwt-go v3.2.0+incompatible h1:7qlOGliEKZXTDg6OTjfoBKDXWrumCAMpl/TFQ4/5kLM=
 github.com/dgrijalva/jwt-go v3.2.0+incompatible/go.mod h1:E3ru+11k8xSBh+hMPgOLZmtrrCbhqsmaPHjLKYnJCaQ=
@@ -417,3 +419,5 @@ gotest.tools v2.2.0+incompatible/go.mod h1:DsYFclhRJ6vuDpmuTbkuFWG+y2sxOXAzmJt81
 honnef.co/go/tools v0.0.0-20180728063816-88497007e858/go.mod h1:rf3lG4BRIbNafJWhAfAdb/ePZxsR/4RtNHQocxwk9r4=
 honnef.co/go/tools v0.0.0-20180920025451-e3ad64cb4ed3/go.mod h1:rf3lG4BRIbNafJWhAfAdb/ePZxsR/4RtNHQocxwk9r4=
 honnef.co/go/tools v0.0.0-20181108184350-ae8f1f9103cc/go.mod h1:rf3lG4BRIbNafJWhAfAdb/ePZxsR/4RtNHQocxwk9r4=
+labix.org/v2/mgo v0.0.0-20140701140051-000000000287/go.mod h1:Lg7AYkt1uXJoR9oeSZ3W/8IXLdvOfIITgZnommstyz4=
+launchpad.net/gocheck v0.0.0-20140225173054-000000000087/go.mod h1:hj7XX3B/0A+80Vse0e+BUHsHMTEhd0O4cpUHr/e/BUM=

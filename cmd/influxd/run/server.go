@@ -485,6 +485,7 @@ func (s *Server) Open() error {
 	s.appendContinuousQueryService(s.config.ContinuousQuery)
 	s.appendHTTPDService(s.config.HTTPD)
 	s.appendRetentionPolicyService(s.config.Retention)
+	s.appendControllerService(s.config.Controller)
 	for _, i := range s.config.GraphiteInputs {
 		if err := s.appendGraphiteService(i); err != nil {
 			return err

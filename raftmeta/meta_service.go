@@ -854,6 +854,49 @@ func (s *MetaService) AddShardOwner(w http.ResponseWriter, r *http.Request) {
 	resp.RetMsg = "ok"
 }
 
+type RemoveShardOwnerReq struct {
+	ShardID uint64
+	NodeID  uint64
+}
+
+type RemoveShardOwnerResp struct {
+	CommonResp
+}
+
+func (s *MetaService) RemoveShardOwner(w http.ResponseWriter, r *http.Request) {
+	resp := new(RemoveShardOwnerResp)
+	resp.RetCode = -1
+	resp.RetMsg = "fail"
+	defer WriteResp(w, &resp)
+
+	data, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		resp.RetMsg = err.Error()
+		s.Logger.Error("RemoveShardOwner fail", zap.Error(err))
+		return
+	}
+
+	var req RemoveShardOwnerReq
+	if err := json.Unmarshal(data, &req); err != nil {
+		resp.RetMsg = err.Error()
+		s.Logger.Error("RemoveShardOwner fail", zap.Error(err))
+		return
+	}
+
+	err = s.ProposeAndWait(internal.RemoveShardOwner, data, nil)
+	if err != nil {
+		resp.RetMsg = err.Error()
+		s.Logger.Error("RemoveShardOwner fail",
+			zap.Uint64("shardID", req.ShardID),
+			zap.Uint64("nodeID", req.NodeID),
+			zap.Error(err))
+		return
+	}
+
+	resp.RetCode = 0
+	resp.RetMsg = "ok"
+}
+
 type DropShardReq struct {
 	Id uint64
 }

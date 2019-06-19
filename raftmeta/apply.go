@@ -217,6 +217,13 @@ func (s *RaftNode) applyCommitted(proposal *internal.Proposal, index uint64) err
 		s.Logger.Info(fmt.Sprintf("add shard owner req %+v", req))
 		return s.MetaCli.AddShardOwner(req.ShardID, req.NodeID)
 
+	case internal.RemoveShardOwner:
+		var req RemoveShardOwnerReq
+		err := json.Unmarshal(proposal.Data, &req)
+		x.Check(err)
+		s.Logger.Info(fmt.Sprintf("add shard owner req %+v", req))
+		return s.MetaCli.RemoveShardOwner(req.ShardID, req.NodeID)
+
 	case internal.DropShard:
 		var req DropShardReq
 		err := json.Unmarshal(proposal.Data, &req)

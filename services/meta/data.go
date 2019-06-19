@@ -418,3 +418,25 @@ func (data *Data) AddShardOwner(id, nodeID uint64) {
 		}
 	}
 }
+
+func (data *Data) RemoveShardOwner(id, nodeID uint64) {
+	for dbidx, dbi := range data.Databases {
+		for rpidx, rpi := range dbi.RetentionPolicies {
+			for sgidx, sg := range rpi.ShardGroups {
+				for sidx, s := range sg.Shards {
+					var newOwners []meta.ShardOwner
+					if s.ID == id {
+						for _, owner := range s.Owners {
+							if owner.NodeID != nodeID {
+								newOwners = append(newOwners, owner)
+							}
+						}
+						s.Owners = newOwners
+						data.Databases[dbidx].RetentionPolicies[rpidx].ShardGroups[sgidx].Shards[sidx] = s
+						return
+					}
+				}
+			}
+		}
+	}
+}

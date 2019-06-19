@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"testing"
-	"time"
 
 	"github.com/coreos/etcd/raft"
 	"github.com/coreos/etcd/raft/raftpb"
@@ -98,7 +97,7 @@ func TestNormal(t *testing.T) {
 	req := &raftmeta.CreateDatabaseReq{Name: "test"}
 	data, _ := json.Marshal(req)
 	db := &meta.DatabaseInfo{}
-	err := s1.ProposeAndWait(internal.CreateDatabase, data, db)
+	s1.ProposeAndWait(internal.CreateDatabase, data, db)
 }
 
 func OpenOneService(id uint64, t *fakeTransport, peers []raftmeta.Peer) *raftmeta.MetaService {

@@ -32,6 +32,7 @@ type Service struct {
 		DeleteDataNode(id uint64) error
 		DataNodeByTCPHost(addr string) (*meta.NodeInfo, error)
 		RemoveShardOwner(shardID, nodeID uint64) error
+		DataNodes() ([]meta.NodeInfo, error)
 	}
 
 	TSDBStore interface {
@@ -128,6 +129,15 @@ func (s *Service) handleConn(conn net.Conn) error {
 	case RequestKillCopyShard:
 		err = s.handleKillCopyShard(conn)
 		s.killCopyShardResponse(conn, err)
+	case RequestRemoveShard:
+		err = s.handleRemoveShard(conn)
+		s.removeShardResponse(conn, err)
+	case RequestRemoveDataNode:
+		err = s.handleRemoveDataNode(conn)
+		s.removeDataNodeResponse(conn, err)
+	case RequestShowDataNodes:
+		nodes, err := s.handleShowDataNodes()
+		s.showDataNodesResponse(conn, nodes, err)
 	}
 
 	return nil
@@ -304,10 +314,32 @@ func (s *Service) handleRemoveShard(conn net.Conn) error {
 			return err
 		}
 		return s.MetaClient.RemoveShardOwner(req.ShardID, ni.ID)
-	} else {
-		//TODO:Forward to req.DataNodeAddr
 	}
-	return nil
+	return fmt.Errorf("invalid DataNodeAddr:%s", req.DataNodeAddr)
+}
+
+func (s *Service) removeShardResponse(w io.Writer, e error) {
+	// Build response.
+	var resp RemoveShardResponse
+	if e != nil {
+		resp.Code = 1
+		resp.Msg = e.Error()
+	} else {
+		resp.Code = 0
+		resp.Msg = "ok"
+	}
+
+	// Marshal response to binary.
+	buf, err := json.Marshal(&resp)
+	if err != nil {
+		s.Logger.Error("error marshalling remove shard response", zap.Error(err))
+		return
+	}
+
+	// Write to connection.
+	if err := coordinator.WriteTLV(w, byte(ResponseRemoveShard), buf); err != nil {
+		s.Logger.Error("remove shard WriteTLV fail", zap.Error(err))
+	}
 }
 
 func (s *Service) handleRemoveDataNode(conn net.Conn) error {
@@ -330,6 +362,68 @@ func (s *Service) handleRemoveDataNode(conn net.Conn) error {
 	}
 
 	return s.MetaClient.DeleteDataNode(ni.ID)
+}
+
+func (s *Service) removeDataNodeResponse(w io.Writer, e error) {
+	// Build response.
+	var resp RemoveDataNodeResponse
+	if e != nil {
+		resp.Code = 1
+		resp.Msg = e.Error()
+	} else {
+		resp.Code = 0
+		resp.Msg = "ok"
+	}
+
+	// Marshal response to binary.
+	buf, err := json.Marshal(&resp)
+	if err != nil {
+		s.Logger.Error("error marshalling remove data node response", zap.Error(err))
+		return
+	}
+
+	// Write to connection.
+	if err := coordinator.WriteTLV(w, byte(ResponseRemoveDataNode), buf); err != nil {
+		s.Logger.Error("remove data node WriteTLV fail", zap.Error(err))
+	}
+}
+
+func (s *Service) handleShowDataNodes() ([]DataNode, error) {
+	nodes, err := s.MetaClient.DataNodes()
+	if err != nil {
+		return nil, err
+	}
+
+	var dataNodes []DataNode
+	for _, n := range nodes {
+		dataNodes = append(dataNodes, DataNode{ID: n.ID, TcpAddr: n.TCPHost, HttpAddr: n.Host})
+	}
+	return dataNodes, nil
+}
+
+func (s *Service) showDataNodesResponse(w io.Writer, nodes []DataNode, e error) {
+	// Build response.
+	var resp ShowDataNodesResponse
+	if e != nil {
+		resp.Code = 1
+		resp.Msg = e.Error()
+	} else {
+		resp.Code = 0
+		resp.Msg = "ok"
+	}
+	resp.DataNodes = nodes
+
+	// Marshal response to binary.
+	buf, err := json.Marshal(&resp)
+	if err != nil {
+		s.Logger.Error("error marshalling show data nodes response", zap.Error(err))
+		return
+	}
+
+	// Write to connection.
+	if err := coordinator.WriteTLV(w, byte(ResponseShowDataNodes), buf); err != nil {
+		s.Logger.Error("show data nodes WriteTLV fail", zap.Error(err))
+	}
 }
 
 type CommonResp struct {
@@ -396,6 +490,17 @@ type RemoveDataNodeResponse struct {
 	CommonResp
 }
 
+type DataNode struct {
+	ID       uint64 `json:"id"`
+	TcpAddr  string `json:"tcp_addr"`
+	HttpAddr string `json:"http_addr"`
+}
+
+type ShowDataNodesResponse struct {
+	CommonResp
+	DataNodes []DataNode `json:"data_nodes"`
+}
+
 // RequestType indicates the typeof ctl request.
 type RequestType byte
 
@@ -407,6 +512,7 @@ const (
 	RequestKillCopyShard               = 4
 	RequestRemoveShard                 = 5
 	RequestRemoveDataNode              = 6
+	RequestShowDataNodes               = 7
 )
 
 type ResponseType byte
@@ -418,4 +524,5 @@ const (
 	ResponseKillCopyShard                = 4
 	ResponseRemoveShard                  = 5
 	ResponseRemoveDataNode               = 6
+	ResponseShowDataNodes                = 7
 )

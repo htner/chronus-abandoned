@@ -7,7 +7,7 @@ type Config struct {
 
 func NewConfig() Config {
 	return Config{
-		Enabled:           false,
+		Enabled:           true,
 		MaxShardCopyTasks: 10,
 	}
 }

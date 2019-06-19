@@ -12,9 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/angopher/chronus/cmd/influxd/run"
@@ -157,41 +155,6 @@ func (s *RemoteServer) WritePoints(database, retentionPolicy string, consistency
 	panic("WritePoints not implemented")
 }
 
-// NewServer returns a new instance of Server.
-func NewServer(c *Config) Server {
-	buildInfo := &run.BuildInfo{
-		Version: "testServer",
-		Commit:  "testCommit",
-		Branch:  "testBranch",
-	}
-
-	// If URL exists, create a server that will run against a remote endpoint
-	if url := os.Getenv("URL"); url != "" {
-		s := &RemoteServer{
-			url: url,
-			client: &client{
-				URLFn: func() string {
-					return url
-				},
-			},
-		}
-		if err := s.Reset(); err != nil {
-			panic(err.Error())
-		}
-		return s
-	}
-
-	// Otherwise create a local server
-	srv, _ := run.NewServer(c.Config, buildInfo)
-	s := LocalServer{
-		client: &client{},
-		Server: srv,
-		Config: c,
-	}
-	s.client.URLFn = s.URL
-	return &s
-}
-
 var cluster *ClusterManager
 
 // OpenServer opens a test server.
@@ -217,45 +180,6 @@ func CleanCluster() {
 	}
 }
 
-// OpenServer opens a test server.
-func OpenServer_(c *Config) Server {
-	s := NewServer(c)
-	configureLogging(s)
-	if err := s.Open(); err != nil {
-		panic(err.Error())
-	}
-	return s
-}
-
-// OpenServerWithVersion opens a test server with a specific version.
-func OpenServerWithVersion(c *Config, version string) Server {
-	// We can't change the version of a remote server.  The test needs to
-	// be skipped if using this func.
-	if RemoteEnabled() {
-		panic("OpenServerWithVersion not support with remote server")
-	}
-
-	buildInfo := &run.BuildInfo{
-		Version: version,
-		Commit:  "",
-		Branch:  "",
-	}
-	srv, _ := run.NewServer(c.Config, buildInfo)
-	s := LocalServer{
-		client: &client{},
-		Server: srv,
-		Config: c,
-	}
-	s.client.URLFn = s.URL
-
-	if err := s.Open(); err != nil {
-		panic(err.Error())
-	}
-	configureLogging(&s)
-
-	return &s
-}
-
 // OpenDefaultServer opens a test server with a default database & retention policy.
 func OpenDefaultServer(c *Config) Server {
 	s := OpenServer(c)
@@ -263,118 +187,6 @@ func OpenDefaultServer(c *Config) Server {
 		panic(err)
 	}
 	return s
-}
-
-// LocalServer is a Server that is running in-process and can be accessed directly
-type LocalServer struct {
-	mu sync.RWMutex
-	*run.Server
-
-	*client
-	Config *Config
-}
-
-// Open opens the server. If running this test on a 32-bit platform it reduces
-// the size of series files so that they can all be addressable in the process.
-func (s *LocalServer) Open() error {
-	if runtime.GOARCH == "386" {
-		s.Server.TSDBStore.SeriesFileMaxSize = 1 << 27 // 128MB
-	}
-	return s.Server.Open()
-}
-
-// Close shuts down the server and removes all temporary paths.
-func (s *LocalServer) Close() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if err := s.Server.Close(); err != nil {
-		panic(err.Error())
-	}
-
-	if cleanupData {
-		if err := os.RemoveAll(s.Config.rootPath); err != nil {
-			panic(err.Error())
-		}
-	}
-
-	// Nil the server so our deadlock detector goroutine can determine if we completed writes
-	// without timing out
-	s.Server = nil
-}
-
-func (s *LocalServer) Closed() bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.Server == nil
-}
-
-// URL returns the base URL for the httpd endpoint.
-func (s *LocalServer) URL() string {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	for _, service := range s.Services {
-		if service, ok := service.(*httpd.Service); ok {
-			return "http://" + service.Addr().String()
-		}
-	}
-	panic("httpd server not found in services")
-}
-
-func (s *LocalServer) CreateDatabase(db string) (*meta.DatabaseInfo, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.MetaClient.CreateDatabase(db)
-}
-
-// CreateDatabaseAndRetentionPolicy will create the database and retention policy.
-func (s *LocalServer) CreateDatabaseAndRetentionPolicy(db string, rp *meta.RetentionPolicySpec, makeDefault bool) error {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	if _, err := s.MetaClient.CreateDatabase(db); err != nil {
-		return err
-	} else if _, err := s.MetaClient.CreateRetentionPolicy(db, rp, makeDefault); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (s *LocalServer) CreateSubscription(database, rp, name, mode string, destinations []string) error {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.MetaClient.CreateSubscription(database, rp, name, mode, destinations)
-}
-
-func (s *LocalServer) DropDatabase(db string) error {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	if err := s.TSDBStore.DeleteDatabase(db); err != nil {
-		return err
-	}
-	return s.MetaClient.DropDatabase(db)
-}
-
-func (s *LocalServer) Reset() error {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	for _, db := range s.MetaClient.Databases() {
-		if err := s.DropDatabase(db.Name); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (s *LocalServer) WritePoints(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, user meta.User, points []models.Point) error {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	if s.PointsWriter == nil {
-		return fmt.Errorf("server closed")
-	}
-
-	return s.PointsWriter.WritePoints(database, retentionPolicy, consistencyLevel, user, points)
 }
 
 // client abstract querying and writing to a Server using HTTP

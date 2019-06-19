@@ -1,9 +1,9 @@
 package command
 
 import (
-	"github.com/spf13/cobra"
-
+	"fmt"
 	"github.com/angopher/chronus/cmd/influxd-ctl/action"
+	"github.com/spf13/cobra"
 )
 
 const (
@@ -31,7 +31,9 @@ func NewCommand() *cobra.Command {
 			if len(args) == 2 {
 				host = args[1]
 			}
-			action.TruncateShards(args[0], host)
+			if err := action.TruncateShards(args[0], host); err != nil {
+				fmt.Println(err)
+			}
 		},
 	}
 
@@ -47,7 +49,9 @@ func NewCommand() *cobra.Command {
 			if len(args) == 1 {
 				host = args[0]
 			}
-			action.CopyShardStatus(host)
+			if err := action.CopyShardStatus(host); err != nil {
+				fmt.Println(err)
+			}
 		},
 	}
 
@@ -57,7 +61,49 @@ func NewCommand() *cobra.Command {
 		Long:  "Aborts an in-progress copy-shard command.",
 		Args:  cobra.MinimumNArgs(3),
 		Run: func(cmd *cobra.Command, args []string) {
-			action.KillCopyShard(args[0], args[1], args[2])
+			if err := action.KillCopyShard(args[0], args[1], args[2]); err != nil {
+				fmt.Println(err)
+			}
+		},
+	}
+
+	var removeCopyShardCmd = &cobra.Command{
+		Use:   "remove-shard <data-node-source-TCP-address> <shard-ID>",
+		Short: "Removes a shard from a data node. Removing a shard is an irrecoverable, destructive action; please be cautious with this command.",
+		Long:  "Removes a shard from a data node. Removing a shard is an irrecoverable, destructive action; please be cautious with this command.",
+		Args:  cobra.MinimumNArgs(2),
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := action.RemoveShard(args[0], args[1]); err != nil {
+				fmt.Println(err)
+			}
+		},
+	}
+
+	var removeDataNodeCmd = &cobra.Command{
+		Use:   "remove-data-node <data-node-source-TCP-address>",
+		Short: "Removes a data node from a cluster.",
+		Long:  "Removes a data node from a cluster.",
+		Args:  cobra.MinimumNArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := action.RemoveDataNode(args[0]); err != nil {
+				fmt.Println(err)
+			}
+		},
+	}
+
+	var showDataNodesCmd = &cobra.Command{
+		Use:   "show-data-nodes [ip:port]",
+		Short: "Show all data node from a cluster.",
+		Long:  "Show all data node from a cluster.",
+		Args:  cobra.RangeArgs(0, 1),
+		Run: func(cmd *cobra.Command, args []string) {
+			host := defaultHost
+			if len(args) == 1 {
+				host = args[0]
+			}
+			if err := action.ShowDataNodes(host); err != nil {
+				fmt.Println(err)
+			}
 		},
 	}
 
@@ -67,6 +113,9 @@ func NewCommand() *cobra.Command {
 		truncateCmd,
 		copyShardStatusCmd,
 		killCopyShardCmd,
+		removeCopyShardCmd,
+		removeDataNodeCmd,
+		showDataNodesCmd,
 	)
 
 	return rootCmd
