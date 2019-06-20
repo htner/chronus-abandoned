@@ -118,18 +118,30 @@ type Checksum struct {
 }
 
 type RaftNode struct {
-	rwMutex       sync.RWMutex
-	MetaCli       MetaClient
-	leases        *meta.Leases
-	ID            uint64
-	Val           string
-	Node          raft.Node
-	RaftConfState *raftpb.ConfState
-	RaftCtx       *internal.RaftContext
-	RaftConfig    *raft.Config
-	Config        Config
-	Storage       *raftwal.DiskStorage
+	ID   uint64
+	Node raft.Node
 
+	MetaCli MetaClient
+	//用于Continuous query
+	leases *meta.Leases
+
+	//raft集群内部配置状态
+	RaftConfState *raftpb.ConfState
+	rwMutex       sync.RWMutex
+
+	//TODO: 这个状态可以消除掉
+	RaftCtx *internal.RaftContext
+
+	//存储本地raft节点的配置信息
+	RaftConfig *raft.Config
+
+	//来自配置文件的配置信息
+	Config Config
+
+	//用于存储raft日志和snapshot
+	Storage *raftwal.DiskStorage
+
+	//节点之间的通信模块
 	Transport interface {
 		SetPeers(peers map[uint64]string)
 		SetPeer(id uint64, addr string)
@@ -139,14 +151,18 @@ type RaftNode struct {
 		JoinCluster(ctx *internal.RaftContext, peers []raft.Peer) error
 	}
 
-	Done         chan struct{}
-	props        *proposals
-	rand         *rand.Rand
-	applyCh      chan *internal.EntryWrapper
+	Done  chan struct{}
+	props *proposals
+	rand  *rand.Rand
+
+	applyCh chan *internal.EntryWrapper
+	//已经apply的最新index
 	appliedIndex uint64
 
+	//最近一次计算的checksum, 用于节点之间对比数据的一致性
 	lastChecksum Checksum
 
+	//用于apply日志index监听
 	applyWait wait.WaitTime
 	// a chan to send out readState
 	readStateC chan raft.ReadState
@@ -294,10 +310,12 @@ func (s *RaftNode) InitAndStartNode() {
 	} else {
 		s.Logger.Info("Starting node")
 		if len(peers) == 0 {
+			//创建一个独立的新集群, 成为第一个节点
 			data, err := json.Marshal(s.RaftCtx)
 			x.Check(err)
 			s.Node = raft.StartNode(s.RaftConfig, []raft.Peer{{ID: s.ID, Context: data}})
 		} else {
+			//加入现有的集群
 			err := s.joinPeers(peers)
 			x.Checkf(err, "join peers fail")
 			s.Logger.Info("join peers success")
@@ -306,6 +324,7 @@ func (s *RaftNode) InitAndStartNode() {
 	}
 }
 
+//请求加入集群
 func (s *RaftNode) joinPeers(peers []raft.Peer) error {
 	x.AssertTrue(len(peers) > 0)
 	return s.Transport.JoinCluster(s.RaftCtx, peers)
@@ -335,7 +354,7 @@ func (s *RaftNode) Run() {
 		case <-snapshotTicker.C:
 			if leader == s.ID {
 				go func() {
-					err := s.trigerSnapshot(1000)
+					err := s.trigerSnapshot()
 					s.Logger.Error("calculateSnapshot fail", zap.Error(err))
 				}()
 			}
@@ -433,7 +452,7 @@ func (s *RaftNode) triggerChecksum() {
 	}
 }
 
-func (s *RaftNode) trigerSnapshot(keepN int) error {
+func (s *RaftNode) trigerSnapshot() error {
 	s.Logger.Info("trigerSnapshot")
 	var sn internal.CreateSnapshot
 	//_, err = s.Storage.LastIndex()

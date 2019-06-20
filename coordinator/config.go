@@ -34,7 +34,7 @@ const (
 	// A value of zero will make the maximum series count unlimited.
 	DefaultMaxSelectSeriesN = 0
 
-	DefaultMetaService = "127.0.0.1:8001"
+	DefaultMetaService = "127.0.0.1:2347"
 )
 
 // Config represents the configuration for the coordinator service.

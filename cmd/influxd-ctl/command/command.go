@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	defaultHost = "127.0.0.1:8086"
+	defaultHost = "127.0.0.1:8088"
 )
 
 func NewCommand() *cobra.Command {
@@ -67,7 +67,7 @@ func NewCommand() *cobra.Command {
 		},
 	}
 
-	var removeCopyShardCmd = &cobra.Command{
+	var removeShardCmd = &cobra.Command{
 		Use:   "remove-shard <data-node-source-TCP-address> <shard-ID>",
 		Short: "Removes a shard from a data node. Removing a shard is an irrecoverable, destructive action; please be cautious with this command.",
 		Long:  "Removes a shard from a data node. Removing a shard is an irrecoverable, destructive action; please be cautious with this command.",
@@ -113,7 +113,7 @@ func NewCommand() *cobra.Command {
 		truncateCmd,
 		copyShardStatusCmd,
 		killCopyShardCmd,
-		removeCopyShardCmd,
+		removeShardCmd,
 		removeDataNodeCmd,
 		showDataNodesCmd,
 	)

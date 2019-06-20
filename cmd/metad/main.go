@@ -48,6 +48,7 @@ func main() {
 	node.InitAndStartNode()
 	go node.Run()
 
+	//线性一致性读
 	linearRead := raftmeta.NewLinearizabler(node)
 	go linearRead.ReadLoop()
 

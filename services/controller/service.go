@@ -58,7 +58,7 @@ func NewService(c Config) *Service {
 
 // Open starts the service.
 func (s *Service) Open() error {
-	s.Logger.Info("Starting snapshot service")
+	s.Logger.Info("Starting controller service")
 
 	s.wg.Add(1)
 	go s.serve()
@@ -95,6 +95,7 @@ func (s *Service) serve() {
 			s.Logger.Info("Error accepting snapshot request", zap.Error(err))
 			continue
 		}
+		s.Logger.Info("accept new conn.")
 
 		// Handle connection in separate goroutine.
 		s.wg.Add(1)
@@ -291,6 +292,7 @@ func (s *Service) killCopyShardResponse(w io.Writer, e error) {
 }
 
 func (s *Service) handleRemoveShard(conn net.Conn) error {
+	s.Logger.Info("handleRemoveShard")
 	buf, err := coordinator.ReadLV(conn)
 	if err != nil {
 		s.Logger.Error("unable to read length-value", zap.Error(err))
@@ -299,21 +301,30 @@ func (s *Service) handleRemoveShard(conn net.Conn) error {
 
 	var req RemoveShardRequest
 	if err := json.Unmarshal(buf, &req); err != nil {
+		s.Logger.Error("unmarshal fail.", zap.Error(err))
 		return err
 	}
 
 	ni, err := s.MetaClient.DataNodeByTCPHost(req.DataNodeAddr)
 	if err != nil {
+		s.Logger.Error("DataNodeByTCPHost fail.", zap.Error(err))
 		return err
 	} else if ni == nil {
-		return fmt.Errorf("not find data node by addr:%s", req.DataNodeAddr)
+		err = fmt.Errorf("not find data node by addr:%s", req.DataNodeAddr)
+		s.Logger.Error("DataNodeByTCPHost fail.", zap.Error(err))
+		return err
 	}
 
 	if s.Node.ID == ni.ID {
 		if err := s.TSDBStore.DeleteShard(req.ShardID); err != nil {
+			s.Logger.Error("DeleteShard fail.", zap.Error(err))
 			return err
 		}
-		return s.MetaClient.RemoveShardOwner(req.ShardID, ni.ID)
+		if err := s.MetaClient.RemoveShardOwner(req.ShardID, ni.ID); err != nil {
+			s.Logger.Error("RemoveShardOwner fail.", zap.Error(err))
+			return err
+		}
+		return nil
 	}
 	return fmt.Errorf("invalid DataNodeAddr:%s", req.DataNodeAddr)
 }

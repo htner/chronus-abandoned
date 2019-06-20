@@ -1416,6 +1416,7 @@ func initHttpHandler(s *MetaService) {
 	http.HandleFunc(SET_ADMIN_PRIVILEGE, s.SetAdminPrivilege)
 	http.HandleFunc(AUTHENTICATE_PATH, s.Authenticate)
 	http.HandleFunc(DROP_SHARD_PATH, s.DropShard)
+	http.HandleFunc(REMOVE_SHARD_OWNER, s.RemoveShardOwner)
 	http.HandleFunc(TRUNCATE_SHARD_GROUPS_PATH, s.TruncateShardGroups)
 	http.HandleFunc(PRUNE_SHARD_GROUPS_PATH, s.PruneShardGroups)
 	http.HandleFunc(DELETE_SHARD_GROUP_PATH, s.DeleteShardGroup)
