@@ -315,11 +315,21 @@ func (s *RaftNode) InitAndStartNode() {
 			x.Check(err)
 			s.Node = raft.StartNode(s.RaftConfig, []raft.Peer{{ID: s.ID, Context: data}})
 		} else {
-			//加入现有的集群
-			err := s.joinPeers(peers)
-			x.Checkf(err, "join peers fail")
-			s.Logger.Info("join peers success")
-			s.Node = raft.StartNode(s.RaftConfig, nil)
+            rpeers := make([]raft.Peer, 0)
+            for _, peer := range s.Config.Peers {
+                rpeers = append(rpeers,  raft.Peer{ID: uint64(peer.RaftId)})
+            }
+			//err := s.joinPeers(peers)
+			//x.Checkf(err, "join peers fail")
+			//s.Logger.Info("join peers success")
+			s.Node = raft.StartNode(s.RaftConfig, rpeers)
+
+            for _, peer := range s.Config.Peers {
+                if peer.RaftId != s.ID {
+                    s.Transport.SetPeer(peer.RaftId, peer.Addr)
+                }
+            }
+
 		}
 	}
 }
